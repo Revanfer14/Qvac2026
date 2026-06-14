@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7601DC312FDF01200081ACD4 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = 7601DC302FDF01200081ACD4 /* SQLite */; };
+		7601DC332FDF01200081ACD4 /* SQLite-Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = 7601DC322FDF01200081ACD4 /* SQLite-Dynamic */; };
 		7655D3D32FDEAEAA0053AE17 /* Base.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 7655D3D22FDEAEAA0053AE17 /* Base.xcconfig */; };
 /* End PBXBuildFile section */
 
@@ -28,6 +30,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7601DC332FDF01200081ACD4 /* SQLite-Dynamic in Frameworks */,
+				7601DC312FDF01200081ACD4 /* SQLite in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +75,8 @@
 			);
 			name = qvac2026;
 			packageProductDependencies = (
+				7601DC302FDF01200081ACD4 /* SQLite */,
+				7601DC322FDF01200081ACD4 /* SQLite-Dynamic */,
 			);
 			productName = qvac2026;
 			productReference = 7655D3BE2FDEAE000053AE17 /* qvac2026.app */;
@@ -100,6 +106,9 @@
 			);
 			mainGroup = 7655D3B52FDEAE000053AE17;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7601DC2F2FDF01200081ACD4 /* XCRemoteSwiftPackageReference "SQLite" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7655D3BF2FDEAE000053AE17 /* Products */;
 			projectDirPath = "";
@@ -168,6 +177,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = NS8WSVTKAD;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -232,6 +242,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = NS8WSVTKAD;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -339,6 +350,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7601DC2F2FDF01200081ACD4 /* XCRemoteSwiftPackageReference "SQLite" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stephencelis/SQLite.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.16.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7601DC302FDF01200081ACD4 /* SQLite */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7601DC2F2FDF01200081ACD4 /* XCRemoteSwiftPackageReference "SQLite" */;
+			productName = SQLite;
+		};
+		7601DC322FDF01200081ACD4 /* SQLite-Dynamic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7601DC2F2FDF01200081ACD4 /* XCRemoteSwiftPackageReference "SQLite" */;
+			productName = "SQLite-Dynamic";
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7655D3B62FDEAE000053AE17 /* Project object */;
 }
