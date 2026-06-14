@@ -9,9 +9,14 @@ import SwiftUI
 
 @main
 struct qvac2026App: App {
+    init() {
+        _ = DatabaseService.shared
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(.light)
         }
     }
 }

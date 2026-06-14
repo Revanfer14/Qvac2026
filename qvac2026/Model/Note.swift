@@ -7,14 +7,14 @@
 
 import Foundation
 
-enum NoteType {
-    case text
-    case audio
-    case folder
+enum NoteType: String {
+    case text = "text"
+    case audio = "audio"
+    case file = "file"
 }
 
 struct Note: Identifiable {
-    let id: UUID = UUID()
+    var id: UUID = UUID()
     var title: String
     var preview: String
     var createdAt: Date
@@ -48,7 +48,7 @@ extension Note {
             Note(title: "Final test to do list",
                  preview: "Items to complete before the demo day ...",
                  createdAt: date(hoursAgo: 2),
-                 type: .text),
+                 type: .file),
 
             // Yesterday
             Note(title: "Interview with user",
@@ -70,7 +70,7 @@ extension Note {
             Note(title: "Weekly project review",
                  preview: "QVAC hackathon progress and next steps ...",
                  createdAt: date(hoursAgo: 0, daysAgo: 4),
-                 type: .folder)
+                 type: .file)
         ]
     }
 }

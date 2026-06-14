@@ -64,7 +64,7 @@ struct NoteIcon: View {
         switch type {
         case .text:   return "doc.text.fill"
         case .audio:  return "waveform"
-        case .folder: return "folder.fill"
+        case .file: return "folder.fill"
         }
     }
 
