@@ -168,6 +168,16 @@ final class NoteRepository {
         }
     }
 
+    func purgeExpiredTrash(olderThanDays days: Int = 30) {
+        let cutoff = Date().timeIntervalSince1970 - Double(days) * 86_400
+        let target = table.filter(colDeletedAt != nil && colDeletedAt < cutoff)
+        do {
+            try db.run(target.delete())
+        } catch {
+            print("NoteRepository purgeExpiredTrash error: \(error)")
+        }
+    }
+
     // MARK: - Private
 
     private func rowToNote(_ row: Row) -> Note {

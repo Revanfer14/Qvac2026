@@ -27,7 +27,7 @@ struct ChatHistoryView: View {
 
                     Text("Chat History")
                         .font(.custom("HelveticaNeue-Medium", size: 16))
-                        .foregroundStyle(Color(hex: "101720"))
+                        .foregroundStyle(Color.labelPrimary)
 
                     Spacer()
                 }
@@ -39,14 +39,14 @@ struct ChatHistoryView: View {
                     Spacer()
                     Text("No chat history yet")
                         .font(.custom("HelveticaNeue", size: 14))
-                        .foregroundStyle(Color(hex: "AEAEB2"))
+                        .foregroundStyle(Color.labelTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
                     Spacer()
                 } else {
                     // Section label
                     Text("RECENT")
                         .font(.custom("HelveticaNeue-Medium", size: 14))
-                        .foregroundStyle(Color(hex: "727272"))
+                        .foregroundStyle(Color.labelSecondary)
                         .kerning(1.0)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 14)
@@ -77,7 +77,7 @@ struct ChatHistoryRow: View {
         HStack {
             Text(title)
                 .font(.custom("HelveticaNeue-Medium", size: 14))
-                .foregroundStyle(Color(hex: "101720"))
+                .foregroundStyle(Color.labelPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Button(action: {}) {

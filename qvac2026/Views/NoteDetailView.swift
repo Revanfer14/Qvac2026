@@ -8,6 +8,8 @@
 import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
+import UIKit
+import Combine
 
 // MARK: - Supporting types
 
@@ -29,6 +31,7 @@ struct NoteDetailView: View {
         _noteId      = State(initialValue: note?.id      ?? UUID())
         _noteTitle   = State(initialValue: note?.title   ?? "Untitled Note")
         _updatedAt   = State(initialValue: note?.updatedAt ?? .now)
+        _persistedNoteExists = State(initialValue: note != nil)
     }
 
     // MARK: Env
@@ -54,7 +57,9 @@ struct NoteDetailView: View {
 
     // MARK: Save guard
 
-    @State private var alreadySaved = false
+    @State private var persistedNoteExists: Bool
+    @State private var suppressAutosave    = false
+    @State private var autosaveCancellable: AnyCancellable?
 
     // MARK: UI
 
@@ -121,10 +126,10 @@ struct NoteDetailView: View {
                     if let data = try? await item.loadTransferable(type: Data.self),
                        let img = UIImage(data: data) {
                         let entry = DisplayImage(id: UUID(), image: img)
-                        await MainActor.run { displayImages.append(entry) }
+                        displayImages.append(entry)
                     }
                 }
-                await MainActor.run { selectedPhotos = [] }
+                selectedPhotos = []
             }
         }
         .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.data]) { result in
@@ -145,23 +150,29 @@ struct NoteDetailView: View {
                 fileAttachments = loaded.filter { $0.type != .image }
                 persistedAttachmentIds = Set(loaded.map { $0.id })
             } else {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(150))
                     editor.textView?.becomeFirstResponder()
                 }
             }
+            autosaveCancellable = editor.$attributedText
+                .dropFirst()
+                .debounce(for: .milliseconds(400), scheduler: RunLoop.main)
+                .sink { _ in persistNote() }
         }
+        .onChange(of: noteTitle) { _, _ in persistNote() }
         .onDisappear {
-            saveNote()
+            persistNote()
         }
     }
 
     // MARK: - Persistence
 
-    private func saveNote() {
-        guard !alreadySaved else { return }
+    private func persistNote() {
+        guard !suppressAutosave else { return }
         let plain = editor.attributedText.string
-        guard !plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        alreadySaved = true
+        let trimmedEmpty = plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if trimmedEmpty && !persistedNoteExists { return }
 
         let preview = String(plain.prefix(100))
         let rtfData = try? editor.attributedText.data(
@@ -169,7 +180,7 @@ struct NoteDetailView: View {
             documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
         )
 
-        if note != nil {
+        if persistedNoteExists {
             db.notes.rename(id: noteId, title: noteTitle)
             db.notes.updateContent(id: noteId, content: plain, contentRTF: rtfData, preview: preview)
         } else {
@@ -183,7 +194,9 @@ struct NoteDetailView: View {
                 createdAt:  .now,
                 updatedAt:  .now
             ))
+            persistedNoteExists = true
         }
+        updatedAt = .now
 
         for att in fileAttachments where !persistedAttachmentIds.contains(att.id) {
             db.attachments.insert(Attachment(
@@ -198,6 +211,7 @@ struct NoteDetailView: View {
                 transcript: att.transcript,
                 createdAt:  att.createdAt
             ))
+            persistedAttachmentIds.insert(att.id)
         }
     }
 
@@ -223,23 +237,34 @@ struct NoteDetailView: View {
 
             Spacer()
 
-            Menu {
-                Button { } label: { Label("Share", systemImage: "square.and.arrow.up") }
-                Button { renameText = noteTitle; showRename = true } label: {
-                    Label("Rename", systemImage: "pencil")
+            if editor.isFocused {
+                Button {
+                    editor.textView?.resignFirstResponder()
+                } label: {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .frame(width: 28, height: 28)
                 }
-                Divider()
-                Button(role: .destructive) {
-                    alreadySaved = true
-                    db.notes.moveToTrash(id: noteId)
-                    dismiss()
-                } label: { Label("Move to Trash", systemImage: "trash") }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .rotationEffect(.degrees(90))
-                    .frame(width: 28, height: 28)
+            } else {
+                Menu {
+                    Button { } label: { Label("Share", systemImage: "square.and.arrow.up") }
+                    Button { renameText = noteTitle; showRename = true } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    Divider()
+                    Button(role: .destructive) {
+                        suppressAutosave = true
+                        db.notes.moveToTrash(id: noteId)
+                        dismiss()
+                    } label: { Label("Move to Trash", systemImage: "trash") }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .rotationEffect(.degrees(90))
+                        .frame(width: 28, height: 28)
+                }
             }
         }
     }
@@ -252,7 +277,6 @@ struct NoteDetailView: View {
                 Text("Type [ / ] to insert formatting and [ @ ] to link a note")
                     .font(.custom("HelveticaNeue", size: 15))
                     .foregroundStyle(Color(.tertiaryLabel))
-                    .padding(.top, 8)
                     .allowsHitTesting(false)
             }
             RichTextEditor(controller: editor)
@@ -320,7 +344,7 @@ struct NoteDetailView: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 32, height: 32)
-                    .background(Color(hex: "1E5DE0"))
+                    .background(Color.bluePrimary)
                     .clipShape(Circle())
             }
             icon("mic")                { editor.textView?.becomeFirstResponder(); startRecording() }
@@ -330,7 +354,7 @@ struct NoteDetailView: View {
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 12)
-        .background(.white)
+        .background(Color.cardBackground)
         .clipShape(Capsule())
         .shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 4)
     }
@@ -354,7 +378,7 @@ struct NoteDetailView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 26, height: 26)
-                    .background(Color(hex: "1E5DE0"))
+                    .background(Color.bluePrimary)
                     .clipShape(Circle())
             }
             Spacer()
@@ -452,7 +476,7 @@ struct NoteDetailView: View {
                     id: \.offset
                 ) { _, h in
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(Color(hex: "5EA0F0"))
+                        .fill(Color.blueLight)
                         .frame(width: 3, height: CGFloat(h))
                 }
             }
@@ -473,7 +497,7 @@ struct NoteDetailView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
-                    .background(Color(hex: "1E5DE0"))
+                    .background(Color.bluePrimary)
                     .clipShape(Capsule())
             }
         }
@@ -494,8 +518,8 @@ struct NoteDetailView: View {
     private var formattedDate: String {
         let fmt = DateFormatter()
         fmt.dateFormat = Calendar.current.isDateInToday(updatedAt)
-            ? "'Today,' HH:mm"
-            : "MMM d, HH:mm"
+            ? "'Last updated, Today,' HH:mm"
+            : "'Last updated,' MMM d, HH:mm"
         return fmt.string(from: updatedAt)
     }
 
@@ -509,7 +533,9 @@ struct NoteDetailView: View {
         recordingSeconds = 0
         recordingTimer?.invalidate()
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            recordingSeconds += 1
+            MainActor.assumeIsolated {
+                recordingSeconds += 1
+            }
         }
     }
 
@@ -608,9 +634,9 @@ struct AttachmentRowView: View {
 
     private var iconColor: Color {
         switch attachment.type {
-        case .audio:          Color(hex: "1E5DE0")
-        case .file:           Color(hex: "3B82F6")
-        case .image, .camera: Color(hex: "5EA0F0")
+        case .audio:          Color.bluePrimary
+        case .file:           Color.blueMedium
+        case .image, .camera: Color.blueLight
         }
     }
 }

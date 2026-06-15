@@ -28,7 +28,7 @@ struct Note: Identifiable {
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = Locale(identifier: "en_US")
         formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: createdAt, relativeTo: .now)
+        return formatter.localizedString(for: updatedAt, relativeTo: .now)
     }
 }
 

@@ -7,6 +7,7 @@
 
 import UIKit
 import SwiftUI
+import Combine
 
 // MARK: - RichTextController
 
@@ -220,7 +221,7 @@ final class RichTextController: ObservableObject {
 
 private extension UIFont {
     func toggling(_ trait: UIFontDescriptor.SymbolicTraits) -> UIFont {
-        var desc = fontDescriptor
+        let desc = fontDescriptor
         var traits = desc.symbolicTraits
         if traits.contains(trait) {
             traits.remove(trait)
@@ -279,12 +280,12 @@ struct RichTextEditor: UIViewRepresentable {
 
         func textViewDidBeginEditing(_ textView: UITextView) {
             isEditing = true
-            DispatchQueue.main.async { self.controller.isFocused = true }
+            controller.isFocused = true
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
             isEditing = false
-            DispatchQueue.main.async { self.controller.isFocused = false }
+            controller.isFocused = false
         }
     }
 }

@@ -43,7 +43,7 @@ struct ChatAIView: View {
                 VStack(spacing: 8) {
                     Text("Ask about your note")
                         .font(.custom("HelveticaNeue-Medium", size: 20))
-                        .foregroundStyle(Color(hex: "101720"))
+                        .foregroundStyle(Color.labelPrimary)
                         .padding(.bottom, 4)
 
                     ForEach(suggestions, id: \.self) { suggestion in
@@ -69,15 +69,15 @@ struct SuggestionPill: View {
         Button(action: {}) {
             Text(text)
                 .font(.custom("HelveticaNeue-Medium", size: 14))
-                .foregroundStyle(Color(hex: "1273C4"))
+                .foregroundStyle(Color.blueBold)
                 .lineLimit(1)
         }
         .buttonStyle(.plain)
         .frame(width: 303, height: 36)
         .background(
             Capsule()
-                .fill(.white)
-                .overlay(Capsule().stroke(Color(hex: "6CB1EC"), lineWidth: 1))
+                .fill(Color.cardBackground)
+                .overlay(Capsule().stroke(Color.blueBorder, lineWidth: 1))
         )
     }
 }
@@ -109,9 +109,8 @@ struct ChatInputBar: View {
         }
         .frame(height: 48)
         .background(
-            Capsule()
-                .fill(.white)
-                .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 0)
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(.systemGray6))
         )
     }
 }

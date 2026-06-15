@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct NoteCard: View {
     let note: Note
@@ -57,7 +58,7 @@ struct NoteCard: View {
     
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: 16)
-            .fill(.white)
+            .fill(Color.cardBackground)
             .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
     }
 }
@@ -76,14 +77,14 @@ struct NoteIcon: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color(hex: "D6E8FF"))
+                .fill(Color.iconBackground)
                 .frame(width: 58, height: 58)
 
             Image(systemName: symbolName)
                 .font(.system(size: 24, weight: .medium))
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Color(hex: "5EA0F0"), Color(hex: "1E5DE0")],
+                        colors: [Color.blueLight, Color.bluePrimary],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -98,5 +99,5 @@ struct NoteIcon: View {
         NoteCard(note: Note.samples[2])
     }
     .padding()
-    .background(Color(hex: "F1F9FF"))
+    .background(Color.bgMid)
 }

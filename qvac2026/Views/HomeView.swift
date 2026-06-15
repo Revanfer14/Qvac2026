@@ -30,6 +30,7 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear { allNotes = DatabaseService.shared.notes.fetchActive() }
         .task(id: refreshTick) {
             allNotes = DatabaseService.shared.notes.fetchActive()
         }

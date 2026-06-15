@@ -50,9 +50,9 @@ struct AppBackground: View {
     var body: some View {
         LinearGradient(
             stops: [
-                .init(color: Color(hex: "FFFFFF"), location: 0.00),
-                .init(color: Color(hex: "F1F9FF"), location: 0.42),
-                .init(color: Color(hex: "E4F4FF"), location: 1.00)
+                .init(color: .bgTop,    location: 0.00),
+                .init(color: .bgMid,    location: 0.42),
+                .init(color: .bgBottom, location: 1.00)
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -62,6 +62,20 @@ struct AppBackground: View {
 }
 
 extension Color {
+    static let labelPrimary   = Color("Colors/LabelPrimary")
+    static let labelSecondary = Color("Colors/LabelSecondary")
+    static let labelTertiary  = Color("Colors/LabelTertiary")
+    static let bgTop          = Color("Colors/BgTop")
+    static let bgMid          = Color("Colors/BgMid")
+    static let bgBottom       = Color("Colors/BgBottom")
+    static let cardBackground = Color("Colors/CardBackground")
+    static let iconBackground = Color("Colors/IconBackground")
+    static let bluePrimary    = Color("Colors/BluePrimary")
+    static let blueLight      = Color("Colors/BlueLight")
+    static let blueMedium     = Color("Colors/BlueMedium")
+    static let blueBold       = Color("Colors/BlueBold")
+    static let blueBorder     = Color("Colors/BlueBorder")
+
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         var int: UInt64 = 0
