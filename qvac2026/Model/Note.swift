@@ -18,6 +18,7 @@ struct Note: Identifiable {
     var title: String
     var preview: String
     var content: String
+    var contentRTF: Data? = nil
     var type: NoteType
     var createdAt: Date
     var updatedAt: Date

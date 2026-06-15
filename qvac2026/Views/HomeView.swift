@@ -8,7 +8,9 @@
 import SwiftUI
 
 struct HomeView: View {
-    
+
+    var refreshTick: Int = 0
+
     @State private var searchText: String = ""
     @State private var allNotes: [Note] = []
     
@@ -28,7 +30,7 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
-        .task {
+        .task(id: refreshTick) {
             allNotes = DatabaseService.shared.notes.fetchActive()
         }
     }

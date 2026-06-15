@@ -8,28 +8,40 @@
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View {
-        TabView {
-            NavigationStack {
-                HomeView()
-            }
-            .tabItem {
-                Label("Home", systemImage: "house")
-            }
 
+    @State private var selectedTab   = 0
+    @State private var showNewNote   = false
+    @State private var refreshTick   = 0
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
             NavigationStack {
-                NoteDetailView()
+                HomeView(refreshTick: refreshTick)
+                    .navigationDestination(isPresented: $showNewNote) {
+                        NoteDetailView()
+                    }
             }
-            .tabItem {
-                Label("New", systemImage: "plus")
-            }
+            .tabItem { Label("Home", systemImage: "house") }
+            .tag(0)
+
+            Color.clear
+                .tabItem { Label("New", systemImage: "plus") }
+                .tag(1)
 
             NavigationStack {
                 ChatAIView()
             }
-            .tabItem {
-                Label("ChatAI", systemImage: "sparkles")
+            .tabItem { Label("ChatAI", systemImage: "sparkles") }
+            .tag(2)
+        }
+        .onChange(of: selectedTab) { _, new in
+            if new == 1 {
+                showNewNote = true
+                selectedTab = 0
             }
+        }
+        .onChange(of: showNewNote) { _, isShowing in
+            if !isShowing { refreshTick += 1 }
         }
     }
 }

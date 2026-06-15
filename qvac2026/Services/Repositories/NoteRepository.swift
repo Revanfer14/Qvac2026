@@ -19,7 +19,8 @@ final class NoteRepository {
     private let colType      = Expression<String>("type")
     private let colCreatedAt = Expression<Double>("created_at")
     private let colUpdatedAt = Expression<Double>("updated_at")
-    private let colDeletedAt = Expression<Double?>("deleted_at")
+    private let colDeletedAt   = Expression<Double?>("deleted_at")
+    private let colContentRTF  = Expression<Data?>("content_rtf")
 
     init(db: Connection) {
         self.db = db
@@ -71,14 +72,15 @@ final class NoteRepository {
     func insert(_ note: Note) {
         do {
             try db.run(table.insert(
-                colId        <- note.id.uuidString,
-                colTitle     <- note.title,
-                colPreview   <- note.preview,
-                colContent   <- note.content,
-                colType      <- note.type.rawValue,
-                colCreatedAt <- note.createdAt.timeIntervalSince1970,
-                colUpdatedAt <- note.updatedAt.timeIntervalSince1970,
-                colDeletedAt <- note.deletedAt?.timeIntervalSince1970
+                colId         <- note.id.uuidString,
+                colTitle      <- note.title,
+                colPreview    <- note.preview,
+                colContent    <- note.content,
+                colContentRTF <- note.contentRTF,
+                colType       <- note.type.rawValue,
+                colCreatedAt  <- note.createdAt.timeIntervalSince1970,
+                colUpdatedAt  <- note.updatedAt.timeIntervalSince1970,
+                colDeletedAt  <- note.deletedAt?.timeIntervalSince1970
             ))
         } catch {
             print("NoteRepository insert error: \(error)")
@@ -89,12 +91,13 @@ final class NoteRepository {
         let target = table.filter(colId == note.id.uuidString)
         do {
             try db.run(target.update(
-                colTitle     <- note.title,
-                colPreview   <- note.preview,
-                colContent   <- note.content,
-                colType      <- note.type.rawValue,
-                colUpdatedAt <- Date().timeIntervalSince1970,
-                colDeletedAt <- note.deletedAt?.timeIntervalSince1970
+                colTitle      <- note.title,
+                colPreview    <- note.preview,
+                colContent    <- note.content,
+                colContentRTF <- note.contentRTF,
+                colType       <- note.type.rawValue,
+                colUpdatedAt  <- Date().timeIntervalSince1970,
+                colDeletedAt  <- note.deletedAt?.timeIntervalSince1970
             ))
         } catch {
             print("NoteRepository update error: \(error)")
@@ -113,13 +116,14 @@ final class NoteRepository {
         }
     }
 
-    func updateContent(id: UUID, content: String, preview: String) {
+    func updateContent(id: UUID, content: String, contentRTF: Data?, preview: String) {
         let target = table.filter(colId == id.uuidString)
         do {
             try db.run(target.update(
-                colContent   <- content,
-                colPreview   <- preview,
-                colUpdatedAt <- Date().timeIntervalSince1970
+                colContent    <- content,
+                colContentRTF <- contentRTF,
+                colPreview    <- preview,
+                colUpdatedAt  <- Date().timeIntervalSince1970
             ))
         } catch {
             print("NoteRepository updateContent error: \(error)")
@@ -168,14 +172,15 @@ final class NoteRepository {
 
     private func rowToNote(_ row: Row) -> Note {
         Note(
-            id:        UUID(uuidString: row[colId]) ?? UUID(),
-            title:     row[colTitle],
-            preview:   row[colPreview],
-            content:   row[colContent],
-            type:      NoteType(rawValue: row[colType]) ?? .text,
-            createdAt: Date(timeIntervalSince1970: row[colCreatedAt]),
-            updatedAt: Date(timeIntervalSince1970: row[colUpdatedAt]),
-            deletedAt: row[colDeletedAt].map { Date(timeIntervalSince1970: $0) }
+            id:         UUID(uuidString: row[colId]) ?? UUID(),
+            title:      row[colTitle],
+            preview:    row[colPreview],
+            content:    row[colContent],
+            contentRTF: row[colContentRTF],
+            type:       NoteType(rawValue: row[colType]) ?? .text,
+            createdAt:  Date(timeIntervalSince1970: row[colCreatedAt]),
+            updatedAt:  Date(timeIntervalSince1970: row[colUpdatedAt]),
+            deletedAt:  row[colDeletedAt].map { Date(timeIntervalSince1970: $0) }
         )
     }
 }

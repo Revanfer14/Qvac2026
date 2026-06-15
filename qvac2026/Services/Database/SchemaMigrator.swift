@@ -9,12 +9,13 @@ import Foundation
 import SQLite
 
 enum SchemaMigrator {
-    static let currentSchemaVersion: Int64 = 1
+    static let currentSchemaVersion: Int64 = 2
 
     static func run(on db: Connection) {
         do {
             let version = (try? db.scalar("PRAGMA user_version") as? Int64) ?? 0
             if version < 1 { try migrateToV1(db) }
+            if version < 2 { try migrateToV2(db) }
         } catch {
             print("SchemaMigrator error: \(error)")
         }
@@ -89,5 +90,10 @@ enum SchemaMigrator {
         """)
 
         try db.execute("PRAGMA user_version = 1")
+    }
+
+    private static func migrateToV2(_ db: Connection) throws {
+        try db.execute("ALTER TABLE notes ADD COLUMN content_rtf BLOB")
+        try db.execute("PRAGMA user_version = 2")
     }
 }

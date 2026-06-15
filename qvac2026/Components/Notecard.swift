@@ -11,14 +11,19 @@ struct NoteCard: View {
     let note: Note
 
     var body: some View {
-        HStack(spacing: 14) {
-            NoteIcon(type: note.type)
-            noteContent
-            Spacer(minLength: 8)
-            moreButton
+        NavigationLink {
+            NoteDetailView(note: note)
+        } label: {
+            HStack(spacing: 14) {
+                NoteIcon(type: note.type)
+                noteContent
+                Spacer(minLength: 8)
+                moreButton
+            }
+            .padding(16)
+            .background(cardBackground)
         }
-        .padding(16)
-        .background(cardBackground)
+        .buttonStyle(.plain)
     }
 
     private var noteContent: some View {
