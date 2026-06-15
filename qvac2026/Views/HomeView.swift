@@ -10,8 +10,7 @@ import SwiftUI
 struct HomeView: View {
     
     @State private var searchText: String = ""
-    
-    private let allNotes: [Note] = Note.samples
+    @State private var allNotes: [Note] = []
     
     var body: some View {
         ScrollView {
@@ -29,6 +28,9 @@ struct HomeView: View {
         .scrollIndicators(.hidden)
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
+        .task {
+            allNotes = DatabaseService.shared.notes.fetchActive()
+        }
     }
     
     private var titleHeader: some View {

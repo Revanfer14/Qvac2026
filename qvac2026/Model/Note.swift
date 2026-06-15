@@ -8,17 +8,20 @@
 import Foundation
 
 enum NoteType: String {
-    case text = "text"
+    case text  = "text"
     case audio = "audio"
-    case file = "file"
+    case file  = "file"
 }
 
 struct Note: Identifiable {
     var id: UUID = UUID()
     var title: String
     var preview: String
-    var createdAt: Date
+    var content: String
     var type: NoteType
+    var createdAt: Date
+    var updatedAt: Date
+    var deletedAt: Date?
 
     var timeAgo: String {
         let formatter = RelativeDateTimeFormatter()
@@ -28,6 +31,7 @@ struct Note: Identifiable {
     }
 }
 
+#if DEBUG
 extension Note {
     static var samples: [Note] {
         let calendar = Calendar.current
@@ -39,38 +43,48 @@ extension Note {
         }
 
         return [
-            // Today
             Note(title: "Coffee shop recommendation in G...",
                  preview: "Try the new café near the office. Sandy ...",
+                 content: "Try the new café near the office. Sandy recommended it.",
+                 type: .text,
                  createdAt: date(hoursAgo: 1),
-                 type: .text),
+                 updatedAt: date(hoursAgo: 1)),
 
             Note(title: "Final test to do list",
                  preview: "Items to complete before the demo day ...",
+                 content: "Items to complete before the demo day.",
+                 type: .file,
                  createdAt: date(hoursAgo: 2),
-                 type: .file),
+                 updatedAt: date(hoursAgo: 2)),
 
-            // Yesterday
             Note(title: "Interview with user",
                  preview: "Key insights from the research session ...",
+                 content: "Key insights from the research session.",
+                 type: .audio,
                  createdAt: date(hoursAgo: 2, daysAgo: 1),
-                 type: .audio),
+                 updatedAt: date(hoursAgo: 2, daysAgo: 1)),
 
             Note(title: "Coffee shop recommendation in G...",
                  preview: "Try the new café near the office. Sandy ...",
+                 content: "Try the new café near the office. Sandy recommended it.",
+                 type: .text,
                  createdAt: date(hoursAgo: 4, daysAgo: 1),
-                 type: .text),
+                 updatedAt: date(hoursAgo: 4, daysAgo: 1)),
 
             Note(title: "Coffee shop recommendation in G...",
                  preview: "Try the new café near the office. Sandy ...",
+                 content: "Try the new café near the office. Sandy recommended it.",
+                 type: .text,
                  createdAt: date(hoursAgo: 6, daysAgo: 1),
-                 type: .text),
+                 updatedAt: date(hoursAgo: 6, daysAgo: 1)),
 
-            // Previous Week
             Note(title: "Weekly project review",
                  preview: "QVAC hackathon progress and next steps ...",
+                 content: "QVAC hackathon progress and next steps.",
+                 type: .file,
                  createdAt: date(hoursAgo: 0, daysAgo: 4),
-                 type: .file)
+                 updatedAt: date(hoursAgo: 0, daysAgo: 4))
         ]
     }
 }
+#endif

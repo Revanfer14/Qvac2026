@@ -7,21 +7,9 @@
 
 import SwiftUI
 
-struct ChatHistoryItem: Identifiable {
-    let id: UUID = UUID()
-    let title: String
-
-    static let samples: [ChatHistoryItem] = [
-        ChatHistoryItem(title: "Give me a one week planning"),
-        ChatHistoryItem(title: "What have i done in the last 3 days"),
-        ChatHistoryItem(title: "What does this medical check up result means?")
-    ]
-}
-
 struct ChatHistoryView: View {
     @Environment(\.dismiss) private var dismiss
-
-    var items: [ChatHistoryItem] = ChatHistoryItem.samples
+    @State private var sessions: [ChatSession] = []
 
     var body: some View {
         ZStack {
@@ -47,26 +35,38 @@ struct ChatHistoryView: View {
                 .padding(.vertical, 16)
                 .padding(.bottom, 10)
 
-                // Section label
-                Text("RECENT")
-                    .font(.custom("HelveticaNeue-Medium", size: 14))
-                    .foregroundStyle(Color(hex: "727272"))
-                    .kerning(1.0)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 14)
+                if sessions.isEmpty {
+                    Spacer()
+                    Text("No chat history yet")
+                        .font(.custom("HelveticaNeue", size: 14))
+                        .foregroundStyle(Color(hex: "AEAEB2"))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    Spacer()
+                } else {
+                    // Section label
+                    Text("RECENT")
+                        .font(.custom("HelveticaNeue-Medium", size: 14))
+                        .foregroundStyle(Color(hex: "727272"))
+                        .kerning(1.0)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 14)
 
-                // Chat list
-                VStack(spacing: 20) {
-                    ForEach(items) { item in
-                        ChatHistoryRow(title: item.title)
+                    // Chat list
+                    VStack(spacing: 20) {
+                        ForEach(sessions) { session in
+                            ChatHistoryRow(title: session.title)
+                        }
                     }
-                }
-                .padding(.horizontal, 20)
+                    .padding(.horizontal, 20)
 
-                Spacer()
+                    Spacer()
+                }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .task {
+            sessions = DatabaseService.shared.chats.fetchSessions()
+        }
     }
 }
 
