@@ -28,7 +28,7 @@ final class NoteEditorState: ObservableObject {
 
     let noteId: UUID
     @Published var noteTitle: String
-    @Published var updatedAt: Date
+    @Published var updatedAt: Date?
 
     // MARK: Rich-text editor
 
@@ -67,7 +67,7 @@ final class NoteEditorState: ObservableObject {
     init(blankWithId id: UUID = UUID()) {
         self.noteId    = id
         self.noteTitle = "Untitled Note"
-        self.updatedAt = .now
+        self.updatedAt = nil
         bindEditor()
     }
 
@@ -138,10 +138,11 @@ final class NoteEditorState: ObservableObject {
     }
 
     var formattedDate: String {
+        guard let date = updatedAt else { return "Not saved yet" }
         let fmt = DateFormatter()
-        fmt.dateFormat = Calendar.current.isDateInToday(updatedAt)
+        fmt.dateFormat = Calendar.current.isDateInToday(date)
             ? "'Last updated, Today,' HH:mm"
             : "'Last updated,' MMM d, HH:mm"
-        return fmt.string(from: updatedAt)
+        return fmt.string(from: date)
     }
 }

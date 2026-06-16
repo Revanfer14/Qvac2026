@@ -47,11 +47,6 @@ struct NoteEditorBody: View {
                 floatingBar.padding(.bottom, 28)
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                keyboardBar
-            }
-        }
         .alert("Rename Note", isPresented: $state.showRename) {
             TextField("Title", text: $state.renameText)
             Button("Save") { state.noteTitle = state.renameText }
@@ -144,8 +139,10 @@ struct NoteEditorBody: View {
                     .foregroundStyle(Color(.tertiaryLabel))
                     .allowsHitTesting(false)
             }
-            RichTextEditor(controller: state.editor)
-                .frame(minHeight: 200)
+            RichTextEditor(controller: state.editor) {
+                NoteKeyboardToolbar(state: state)
+            }
+            .frame(minHeight: 200)
         }
     }
 
@@ -203,162 +200,24 @@ struct NoteEditorBody: View {
     // MARK: - Floating Bar (keyboard not visible)
 
     private var floatingBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 24) {
-                Button { state.editor.textView?.becomeFirstResponder() } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(Color.bluePrimary)
-                }
-                icon("mic")                { state.editor.textView?.becomeFirstResponder(); state.startRecording() }
-                icon("camera")              {}
-                icon("photo.on.rectangle")  { state.showPhotoPicker = true }
-                icon("paperclip")           { state.showFilePicker  = true }
+        HStack(spacing: 24) {
+            Button { state.editor.textView?.becomeFirstResponder() } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(Color.bluePrimary)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 8)
+            icon("mic")                { state.editor.textView?.becomeFirstResponder(); state.startRecording() }
+            icon("camera")              {}
+            icon("photo.on.rectangle")  { state.showPhotoPicker = true }
+            icon("paperclip")           { state.showFilePicker  = true }
         }
-        .overlay(alignment: .trailing) {
-            LinearGradient(
-                colors: [Color.white.opacity(0), Color.white.opacity(0.9)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: 50)
-            .allowsHitTesting(false)
-        }
-        .frame(height: 48)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .fixedSize()
         .background(Color.white)
         .clipShape(Capsule())
         .overlay(Capsule().stroke(Color(hex: "#DCDCDC"), lineWidth: 1))
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 2)
-    }
-
-    // MARK: - Keyboard Toolbar
-
-    @ViewBuilder
-    private var keyboardBar: some View {
-        switch state.activeToolbar {
-        case .main:       mainBar
-        case .formatting: formattingBar
-        case .list:       listBar
-        case .recording:  recordingBar
-        }
-    }
-
-    private var mainBar: some View {
-        HStack(spacing: 18) {
-            Button {} label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(Color.bluePrimary)
-            }
-            icon("mic")                  { state.startRecording() }
-            icon("camera")                {}
-            icon("photo.on.rectangle")    { state.showPhotoPicker = true }
-            icon("paperclip")             { state.showFilePicker  = true }
-            Color.secondary.opacity(0.25)
-                .frame(width: 1, height: 18)
-            icon("textformat.alt")        { state.activeToolbar = .formatting }
-            icon("list.bullet")           { state.activeToolbar = .list }
-            icon("tablecells")            { state.editor.insertTable() }
-            icon("arrow.uturn.backward")  { state.editor.undo() }
-            icon("arrow.uturn.forward")   { state.editor.redo() }
-        }
-    }
-
-    private var formattingBar: some View {
-        HStack(spacing: 0) {
-            Button { state.activeToolbar = .main } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .frame(width: 26, height: 26)
-            }
-            Spacer()
-            Button("H1") { state.editor.applyHeading(1) }
-                .font(.custom("HelveticaNeue-Bold", size: 14))
-                .foregroundStyle(.primary)
-            Spacer()
-            Button("H2") { state.editor.applyHeading(2) }
-                .font(.custom("HelveticaNeue-Bold", size: 14))
-                .foregroundStyle(.primary)
-            Spacer()
-            Button("H3") { state.editor.applyHeading(3) }
-                .font(.custom("HelveticaNeue-Bold", size: 14))
-                .foregroundStyle(.primary)
-            Spacer()
-            icon("bold")            { state.editor.toggleBold() }
-            Spacer()
-            icon("italic")          { state.editor.toggleItalic() }
-            Spacer()
-            icon("underline")       { state.editor.toggleUnderline() }
-            Spacer()
-            icon("strikethrough")   { state.editor.toggleStrikethrough() }
-            Spacer()
-            icon("decrease.indent") { state.editor.indentDecrease() }
-            Spacer()
-            icon("increase.indent") { state.editor.indentIncrease() }
-        }
-    }
-
-    private var listBar: some View {
-        HStack(spacing: 0) {
-            Button { state.activeToolbar = .main } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .frame(width: 26, height: 26)
-            }
-            Spacer()
-            icon("list.bullet") { state.editor.toggleBulletList() }
-            Spacer()
-            icon("checklist")   { state.editor.toggleChecklist() }
-            Spacer()
-            icon("list.number") { state.editor.toggleNumberedList() }
-            Spacer()
-        }
-    }
-
-    private var recordingBar: some View {
-        HStack(spacing: 12) {
-            Text(state.recordingTimeString)
-                .font(.system(size: 13).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 34, alignment: .leading)
-
-            HStack(spacing: 2) {
-                ForEach(
-                    Array([8, 14, 20, 12, 18, 22, 10, 16, 20, 8, 14, 18, 22, 12, 16, 10, 20, 14]
-                        .enumerated()),
-                    id: \.offset
-                ) { _, h in
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(Color.blueLight)
-                        .frame(width: 3, height: CGFloat(h))
-                }
-            }
-
-            Spacer()
-
-            Button { state.cancelRecording() } label: {
-                Text("Cancel")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-            }
-
-            Button { state.stopRecording() } label: {
-                Text("Done")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(Color.bluePrimary)
-                    .clipShape(Capsule())
-            }
-        }
     }
 
     // MARK: - Helpers
@@ -371,5 +230,6 @@ struct NoteEditorBody: View {
                 .foregroundStyle(.primary)
                 .frame(width: 26, height: 26)
         }
+        .buttonStyle(.plain)
     }
 }

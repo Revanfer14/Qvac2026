@@ -249,8 +249,14 @@ private extension UIFont {
 
 // MARK: - RichTextEditor (UIViewRepresentable)
 
-struct RichTextEditor: UIViewRepresentable {
+struct RichTextEditor<Accessory: View>: UIViewRepresentable {
     @ObservedObject var controller: RichTextController
+    var accessory: () -> Accessory
+
+    init(controller: RichTextController, @ViewBuilder accessory: @escaping () -> Accessory) {
+        self._controller = ObservedObject(wrappedValue: controller)
+        self.accessory = accessory
+    }
 
     func makeUIView(context: Context) -> UITextView {
         let tv = UITextView()
@@ -262,6 +268,14 @@ struct RichTextEditor: UIViewRepresentable {
         tv.textContainer.lineFragmentPadding = 0
         tv.attributedText = controller.attributedText
         controller.textView = tv
+
+        let host = UIHostingController(rootView: accessory())
+        host.view.frame = CGRect(x: 0, y: 0, width: 0, height: 48)
+        host.view.autoresizingMask = [.flexibleWidth]
+        host.view.backgroundColor = .clear
+        tv.inputAccessoryView = host.view
+        context.coordinator.hostingController = host
+
         return tv
     }
 
@@ -272,6 +286,7 @@ struct RichTextEditor: UIViewRepresentable {
             tv.attributedText = controller.attributedText
             tv.selectedRange = savedRange
         }
+        context.coordinator.hostingController?.rootView = accessory()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -283,6 +298,7 @@ struct RichTextEditor: UIViewRepresentable {
     final class Coordinator: NSObject, UITextViewDelegate {
         let controller: RichTextController
         var isEditing = false
+        var hostingController: UIHostingController<Accessory>?
 
         init(controller: RichTextController) {
             self.controller = controller

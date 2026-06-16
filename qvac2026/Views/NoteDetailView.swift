@@ -16,6 +16,7 @@ struct NoteDetailView: View {
     @StateObject private var state: NoteEditorState
 
     @State private var suppressAutosave    = false
+    @State private var hasChanges          = false
     @State private var autosaveCancellable: AnyCancellable?
 
     private let db = DatabaseService.shared
@@ -36,14 +37,14 @@ struct NoteDetailView: View {
                 autosaveCancellable = state.editor.$attributedText
                     .dropFirst()
                     .debounce(for: .milliseconds(400), scheduler: RunLoop.main)
-                    .sink { _ in persist() }
+                    .sink { _ in hasChanges = true; persist() }
             }
-            .onChange(of: state.noteTitle) { _, _ in persist() }
+            .onChange(of: state.noteTitle) { _, _ in hasChanges = true; persist() }
             .onDisappear {
                 state.editor.textView?.resignFirstResponder()
                 state.editor.isFocused = false
                 state.activeToolbar = .main
-                persist()
+                if hasChanges { persist() }
             }
     }
 
