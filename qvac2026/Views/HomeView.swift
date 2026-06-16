@@ -59,7 +59,7 @@ struct HomeView: View {
         
         let source = searchText.isEmpty
         ? allNotes
-        : allNotes.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        : allNotes.filter { $0.title.localizedCaseInsensitiveContains(searchText) || $0.preview.localizedCaseInsensitiveContains(searchText) }
         
         let today = source.filter { calendar.isDateInToday($0.updatedAt) }
         

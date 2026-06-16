@@ -60,7 +60,7 @@ struct AppBackground: View {
     var body: some View {
         LinearGradient(
             stops: [
-                .init(color: .bgTop,    location: 0.00),
+                .init(color: .bgMid,    location: 0.00),
                 .init(color: .bgMid,    location: 0.42),
                 .init(color: .bgBottom, location: 1.00)
             ],
