@@ -13,7 +13,7 @@ enum NoteType: String {
     case file  = "file"
 }
 
-struct Note: Identifiable {
+struct Note: Identifiable, Hashable {
     var id: UUID = UUID()
     var title: String
     var preview: String
@@ -62,8 +62,8 @@ extension Note {
                  preview: "Key insights from the research session ...",
                  content: "Key insights from the research session.",
                  type: .audio,
-                 createdAt: date(hoursAgo: 2, daysAgo: 1),
-                 updatedAt: date(hoursAgo: 2, daysAgo: 1)),
+                 createdAt: date(hoursAgo: 2, daysAgo: 100),
+                 updatedAt: date(hoursAgo: 2, daysAgo: 100)),
 
             Note(title: "Coffee shop recommendation in G...",
                  preview: "Try the new café near the office. Sandy ...",

@@ -209,6 +209,20 @@ final class RichTextController: ObservableObject {
         sync(from: tv)
     }
 
+    // MARK: Undo / Redo
+
+    func undo() {
+        guard let tv = textView, let mgr = tv.undoManager else { return }
+        if mgr.canUndo { mgr.undo() }
+        sync(from: tv)
+    }
+
+    func redo() {
+        guard let tv = textView, let mgr = tv.undoManager else { return }
+        if mgr.canRedo { mgr.redo() }
+        sync(from: tv)
+    }
+
     // MARK: Internal sync
 
     func sync(from tv: UITextView) {

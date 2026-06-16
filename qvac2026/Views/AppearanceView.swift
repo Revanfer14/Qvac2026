@@ -13,16 +13,14 @@ struct AppearanceView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            AppBackground()
-
             VStack(spacing: 0) {
                 headerBar
                 rowList
                 Spacer()
             }
         }
+        .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
     }
 
     private var headerBar: some View {

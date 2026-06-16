@@ -61,15 +61,15 @@ struct HomeView: View {
         ? allNotes
         : allNotes.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         
-        let today = source.filter { calendar.isDateInToday($0.createdAt) }
+        let today = source.filter { calendar.isDateInToday($0.updatedAt) }
         
-        let yesterday = source.filter { calendar.isDateInYesterday($0.createdAt) }
+        let yesterday = source.filter { calendar.isDateInYesterday($0.updatedAt) }
         
         let previousWeek = source.filter {
-            let isRecent = calendar.isDateInToday($0.createdAt)
-            || calendar.isDateInYesterday($0.createdAt)
+            let isRecent = calendar.isDateInToday($0.updatedAt)
+            || calendar.isDateInYesterday($0.updatedAt)
             let weekAgo = calendar.date(byAdding: .day, value: -7, to: .now)!
-            return !isRecent && $0.createdAt >= weekAgo
+            return !isRecent && $0.updatedAt >= weekAgo
         }
         
         return [
@@ -89,14 +89,14 @@ struct NoteGroup {
 struct NoteSectionView: View {
     let title: String
     let notes: [Note]
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.custom("HelveticaNeue", size: 13))
                 .foregroundStyle(Color.secondary)
                 .kerning(1.0)
-            
+
             VStack(spacing: 10) {
                 ForEach(notes) { note in
                     NoteCard(note: note)

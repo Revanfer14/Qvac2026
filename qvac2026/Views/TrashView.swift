@@ -18,15 +18,13 @@ struct TrashView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            AppBackground()
-
             VStack(spacing: 0) {
                 headerBar
                 content
             }
         }
+        .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
         .task {
             db.purgeExpiredTrash()
             trashed = db.fetchTrashed()

@@ -19,8 +19,6 @@ struct ChatAIView: View {
 
     var body: some View {
         ZStack {
-            AppBackground()
-
             VStack(spacing: 0) {
                 HStack {
                     Text("Entropy AI")
@@ -58,6 +56,7 @@ struct ChatAIView: View {
                     .padding(.bottom, 12)
             }
         }
+        .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
     }
 }

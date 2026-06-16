@@ -13,8 +13,6 @@ struct ChatHistoryView: View {
 
     var body: some View {
         ZStack {
-            AppBackground()
-
             VStack(alignment: .leading, spacing: 0) {
                 // Nav bar
                 HStack(spacing: 8) {
@@ -63,6 +61,7 @@ struct ChatHistoryView: View {
                 }
             }
         }
+        .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
         .task {
             sessions = DatabaseService.shared.chats.fetchSessions()

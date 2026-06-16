@@ -7,41 +7,51 @@
 
 import SwiftUI
 
+enum NoteRoute: Hashable {
+    case new(UUID)
+    case existing(Note)
+
+    var destinationID: String {
+        switch self {
+        case .new(let id):       "new-\(id.uuidString)"
+        case .existing(let note): "existing-\(note.id.uuidString)"
+        }
+    }
+}
+
 struct ContentView: View {
 
-    @State private var selectedTab   = 0
-    @State private var showNewNote   = false
-    @State private var refreshTick   = 0
+    @State private var screen: AppScreen = .home
+    @State private var path = NavigationPath()
+    @State private var refreshTick = 0
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack {
-                HomeView(refreshTick: refreshTick)
-                    .navigationDestination(isPresented: $showNewNote) {
-                        NoteDetailView()
-                    }
+        NavigationStack(path: $path) {
+            Group {
+                switch screen {
+                case .home: HomeView(refreshTick: refreshTick)
+                case .chat: ChatAIView()
+                }
             }
-            .tabItem { Label("Home", systemImage: "house") }
-            .tag(0)
-
-            Color.clear
-                .tabItem { Label("New", systemImage: "plus") }
-                .tag(1)
-
-            NavigationStack {
-                ChatAIView()
+            .safeAreaInset(edge: .bottom) {
+                AppTabBar(
+                    screen: $screen,
+                    onNew: { path.append(NoteRoute.new(UUID())) }
+                )
             }
-            .tabItem { Label("ChatAI", systemImage: "sparkles") }
-            .tag(2)
-        }
-        .onChange(of: selectedTab) { _, new in
-            if new == 1 {
-                showNewNote = true
-                selectedTab = 0
+            .navigationDestination(for: NoteRoute.self) { route in
+                switch route {
+                case .new:
+                    NewNoteView()
+                        .id(route.destinationID)
+                case .existing(let note):
+                    NoteDetailView(note: note)
+                        .id(route.destinationID)
+                }
             }
         }
-        .onChange(of: showNewNote) { _, isShowing in
-            if !isShowing { refreshTick += 1 }
+        .onChange(of: path) { _, newPath in
+            if newPath.isEmpty { refreshTick += 1 }
         }
     }
 }

@@ -12,9 +12,7 @@ struct NoteCard: View {
     let note: Note
 
     var body: some View {
-        NavigationLink {
-            NoteDetailView(note: note)
-        } label: {
+        NavigationLink(value: NoteRoute.existing(note)) {
             HStack(spacing: 14) {
                 NoteIcon(type: note.type)
                 noteContent
