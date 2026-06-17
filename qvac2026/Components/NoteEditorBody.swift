@@ -35,7 +35,6 @@ struct NoteEditorBody: View {
                         if state.isRecording {
                             listeningPill.padding(.top, 10)
                         }
-                        attachmentSection.padding(.top, 8)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 140)
@@ -57,22 +56,23 @@ struct NoteEditorBody: View {
                 for item in items {
                     if let data = try? await item.loadTransferable(type: Data.self),
                        let img = UIImage(data: data) {
-                        state.displayImages.append(DisplayImage(id: UUID(), image: img))
+                        state.addImage(img)
                     }
                 }
                 state.selectedPhotos = []
             }
         }
+        .fullScreenCover(item: $state.presentedImage) { item in
+            ImageViewerView(image: item.image)
+        }
+        .sheet(item: $state.presentedFile) { file in
+            FilePreviewView(url: file.url)
+        }
         .fileImporter(isPresented: $state.showFilePicker, allowedContentTypes: [.data]) { result in
             guard let url = try? result.get() else { return }
-            state.fileAttachments.append(Attachment(
-                noteId:    state.noteId,
-                type:      .file,
-                filename:  url.lastPathComponent,
-                filePath:  url.path,
-                sizeBytes: 0,
-                createdAt: .now
-            ))
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            state.addFile(from: url)
         }
     }
 
@@ -163,52 +163,17 @@ struct NoteEditorBody: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    // MARK: - Attachments
-
-    @ViewBuilder
-    private var attachmentSection: some View {
-        if !state.displayImages.isEmpty || !state.fileAttachments.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                if !state.displayImages.isEmpty {
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 140, maximum: 200))],
-                        spacing: 8
-                    ) {
-                        ForEach(state.displayImages) { item in
-                            Image(uiImage: item.image)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(height: 160)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                    }
-                }
-
-                ForEach(state.fileAttachments) { att in
-                    AttachmentRowView(attachment: att) {
-                        state.deleteAttachment(att)
-                    }
-                }
-            }
-        }
-    }
-
     // MARK: - Floating Bar (keyboard not visible)
 
     private var floatingBar: some View {
         HStack(spacing: 24) {
-            Button { state.editor.textView?.becomeFirstResponder() } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(Color.bluePrimary)
-            }
             icon("mic")                { state.editor.textView?.becomeFirstResponder(); state.startRecording() }
             icon("camera")              {}
             icon("photo.on.rectangle")  { state.showPhotoPicker = true }
             icon("paperclip")           { state.showFilePicker  = true }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
         .fixedSize()
         .background(Color.white)
         .clipShape(Capsule())

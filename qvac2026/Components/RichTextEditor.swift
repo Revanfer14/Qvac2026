@@ -287,6 +287,128 @@ final class RichTextController: ObservableObject {
         sync(from: tv)
     }
 
+    // MARK: Inline image
+
+    /// Inserts an image attachment at the current cursor position.
+    /// A newline is prepended if the cursor is not already at the start of a line,
+    /// and a trailing newline is always appended so typing continues below the image.
+    func insertImage(_ attachment: Attachment, host: ImageAttachmentHosting) {
+        guard let tv = textView else { return }
+
+        let att = ImageTextAttachment(imageId: attachment.id.uuidString)
+        att.host = host
+
+        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: defaultFont]
+        let insertion = NSMutableAttributedString()
+
+        let insertionPoint = tv.selectedRange.location
+        let fullNSStr = tv.attributedText.string as NSString
+        let needsLeadingNewline = insertionPoint > 0
+            && fullNSStr.character(at: insertionPoint - 1) != 10  // 10 = '\n'
+        if needsLeadingNewline {
+            insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+        }
+        insertion.append(NSAttributedString(attachment: att))
+        insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+
+        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
+        mutable.insert(insertion, at: insertionPoint)
+        tv.attributedText = mutable
+        tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
+        sync(from: tv)
+    }
+
+    /// Removes the inline image attachment with the given `imageId` from the text view,
+    /// also consuming its trailing newline.
+    func removeImageAttachment(imageId: String) {
+        guard let tv = textView else { return }
+        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
+        let fullNSStr = mutable.string as NSString
+        var rangeToDelete: NSRange?
+
+        mutable.enumerateAttribute(
+            .attachment,
+            in: NSRange(location: 0, length: mutable.length),
+            options: .reverse
+        ) { value, range, stop in
+            if (value as? ImageTextAttachment)?.imageId == imageId {
+                rangeToDelete = range
+                stop.pointee = true
+            }
+        }
+
+        guard var range = rangeToDelete else { return }
+        let afterEnd = range.location + range.length
+        if afterEnd < fullNSStr.length && fullNSStr.character(at: afterEnd) == 10 {
+            range.length += 1
+        }
+
+        mutable.deleteCharacters(in: range)
+        tv.attributedText = mutable
+        sync(from: tv)
+    }
+
+    // MARK: Inline file
+
+    /// Inserts a file attachment card at the current cursor position.
+    /// A newline is prepended if the cursor is not already at the start of a line,
+    /// and a trailing newline is always appended so typing continues below the card.
+    func insertFile(_ attachment: Attachment, host: FileAttachmentHosting) {
+        guard let tv = textView else { return }
+
+        let att = FileTextAttachment(fileId: attachment.id.uuidString)
+        att.host = host
+
+        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: defaultFont]
+        let insertion = NSMutableAttributedString()
+
+        let insertionPoint = tv.selectedRange.location
+        let fullNSStr = tv.attributedText.string as NSString
+        let needsLeadingNewline = insertionPoint > 0
+            && fullNSStr.character(at: insertionPoint - 1) != 10  // 10 = '\n'
+        if needsLeadingNewline {
+            insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+        }
+        insertion.append(NSAttributedString(attachment: att))
+        insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+
+        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
+        mutable.insert(insertion, at: insertionPoint)
+        tv.attributedText = mutable
+        tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
+        sync(from: tv)
+    }
+
+    /// Removes the inline file attachment with the given `fileId` from the text view,
+    /// also consuming its trailing newline.
+    func removeFileAttachment(fileId: String) {
+        guard let tv = textView else { return }
+        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
+        let fullNSStr = mutable.string as NSString
+        var rangeToDelete: NSRange?
+
+        mutable.enumerateAttribute(
+            .attachment,
+            in: NSRange(location: 0, length: mutable.length),
+            options: .reverse
+        ) { value, range, stop in
+            if (value as? FileTextAttachment)?.fileId == fileId {
+                rangeToDelete = range
+                stop.pointee = true
+            }
+        }
+
+        guard var range = rangeToDelete else { return }
+        let afterEnd = range.location + range.length
+        if afterEnd < fullNSStr.length && fullNSStr.character(at: afterEnd) == 10 {
+            range.length += 1
+        }
+
+        mutable.deleteCharacters(in: range)
+        tv.attributedText = mutable
+        sync(from: tv)
+    }
+
     // MARK: Undo / Redo
 
     func undo() {

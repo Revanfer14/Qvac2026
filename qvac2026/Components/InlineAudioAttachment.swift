@@ -118,8 +118,13 @@ final class AudioAttachmentViewProvider: NSTextAttachmentViewProvider {
         let audioURL = dbAtt.map { AudioService.url(forRelative: $0.filePath) }
         let duration = Double(dbAtt?.durationMs ?? 0) / 1000
 
-        card.configure(filename: filename, audioURL: audioURL, duration: duration) { [weak att] in
-            guard let uuid = UUID(uuidString: audioId) else { return }
+        let uuid = UUID(uuidString: audioId) ?? UUID()
+        card.configure(
+            audioId:  uuid,
+            filename: filename,
+            audioURL: audioURL,
+            duration: duration
+        ) { [weak att] in
             att?.host?.deleteInlineAudio(id: uuid)
         }
     }
@@ -273,6 +278,7 @@ final class AudioCardView: UIView {
     // MARK: - Configuration
 
     func configure(
+        audioId:  UUID,
         filename: String,
         audioURL: URL?,
         duration: TimeInterval,
@@ -287,12 +293,61 @@ final class AudioCardView: UIView {
         slider.maximumValue = Float(max(duration, 1))
         totalLabel.text     = Self.timeString(duration)
 
+        // Rename action
+        let renameAction = UIAction(
+            title: "Rename",
+            image: UIImage(systemName: "pencil")
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.presentRename(audioId: audioId, currentName: self.fileLabel.text ?? "")
+        }
+
+        // Download action
+        let downloadAction = UIAction(
+            title: "Download",
+            image: UIImage(systemName: "arrow.down.to.line")
+        ) { [weak self] _ in
+            guard let self, let url = audioURL else { return }
+            self.presentShare(items: [url])
+        }
+
+        // Delete action
         let deleteAction = UIAction(
-            title: "Delete",
-            image: UIImage(systemName: "trash"),
+            title:      "Delete",
+            image:      UIImage(systemName: "trash"),
             attributes: .destructive
         ) { _ in onDelete() }
-        menuButton.menu = UIMenu(children: [deleteAction])
+
+        menuButton.menu = UIMenu(children: [renameAction, downloadAction, deleteAction])
+    }
+
+    // MARK: - Rename / Download helpers
+
+    private func presentRename(audioId: UUID, currentName: String) {
+        let alert = UIAlertController(title: "Rename", message: nil, preferredStyle: .alert)
+        alert.addTextField { tf in
+            tf.text           = currentName
+            tf.clearButtonMode = .whileEditing
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+            guard let self,
+                  let newName = alert?.textFields?.first?.text,
+                  !newName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+            let trimmed = newName.trimmingCharacters(in: .whitespaces)
+            DatabaseService.shared.attachments.rename(id: audioId, filename: trimmed)
+            self.fileLabel.text = trimmed
+        })
+        guard let vc = nearestViewController() else { return }
+        alert.popoverPresentationController?.sourceView = menuButton
+        vc.present(alert, animated: true)
+    }
+
+    private func presentShare(items: [Any]) {
+        let share = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        guard let vc = nearestViewController() else { return }
+        share.popoverPresentationController?.sourceView = menuButton
+        vc.present(share, animated: true)
     }
 
     // MARK: - Actions
@@ -326,5 +381,16 @@ final class AudioCardView: UIView {
     private static func timeString(_ t: TimeInterval) -> String {
         let s = max(0, Int(t))
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    /// Walks the responder chain to find the nearest `UIViewController` for
+    /// presenting alerts and share sheets.
+    private func nearestViewController() -> UIViewController? {
+        var responder: UIResponder? = self
+        while let next = responder?.next {
+            if let vc = next as? UIViewController { return vc }
+            responder = next
+        }
+        return nil
     }
 }
