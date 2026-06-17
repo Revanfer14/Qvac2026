@@ -13,61 +13,42 @@ struct NoteDetailView: View {
     let note: Note
 
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var state: NoteEditorState
+    @StateObject private var vm: NoteEditorViewModel
 
-    @State private var suppressAutosave    = false
-    @State private var hasChanges          = false
     @State private var autosaveCancellable: AnyCancellable?
-
-    private let db = DatabaseService.shared
 
     init(note: Note) {
         self.note = note
-        _state = StateObject(wrappedValue: NoteEditorState(note: note))
+        _vm = StateObject(wrappedValue: NoteEditorViewModel(note: note))
     }
 
     var body: some View {
-        NoteEditorBody(state: state, onMoveToTrash: trashAndDismiss)
+        NoteEditorBody(state: vm, onMoveToTrash: trashAndDismiss)
             .toolbar(.hidden, for: .navigationBar)
             .onAppear {
-                state.editor.loadInitialContent(note: note)
-                let loaded = db.attachments.fetch(forNoteId: note.id)
-                state.fileAttachments = loaded.filter { $0.type != .image }
-                state.persistedAttachmentIds = Set(loaded.map { $0.id })
-                autosaveCancellable = state.editor.$attributedText
+                vm.loadContent(note: note)
+                autosaveCancellable = vm.editor.$attributedText
                     .dropFirst()
                     .debounce(for: .milliseconds(400), scheduler: RunLoop.main)
-                    .sink { _ in hasChanges = true; persist() }
+                    .sink { _ in
+                        vm.markChanged()
+                        vm.persist()
+                    }
             }
-            .onChange(of: state.noteTitle) { _, _ in hasChanges = true; persist() }
+            .onChange(of: vm.noteTitle) { _, _ in
+                vm.markChanged()
+                vm.persist()
+            }
             .onDisappear {
-                state.editor.textView?.resignFirstResponder()
-                state.editor.isFocused = false
-                state.activeToolbar = .main
-                if hasChanges { persist() }
+                vm.editor.textView?.resignFirstResponder()
+                vm.editor.isFocused = false
+                vm.activeToolbar = .main
+                vm.persistIfChanged()
             }
-    }
-
-    // MARK: - Persistence
-
-    private func persist() {
-        guard !suppressAutosave else { return }
-        let plain = state.editor.attributedText.string
-        let preview = String(plain.prefix(100))
-        let rtfData = try? state.editor.attributedText.data(
-            from: NSRange(location: 0, length: state.editor.attributedText.length),
-            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
-        )
-
-        db.notes.rename(id: note.id, title: state.noteTitle)
-        db.notes.updateContent(id: note.id, content: plain, contentRTF: rtfData, preview: preview)
-        state.updatedAt = .now
-        state.flushNewAttachments(db: db)
     }
 
     private func trashAndDismiss() {
-        suppressAutosave = true
-        db.notes.moveToTrash(id: note.id)
+        vm.moveToTrash()
         dismiss()
     }
 }

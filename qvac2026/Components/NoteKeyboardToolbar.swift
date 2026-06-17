@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct NoteKeyboardToolbar: View {
-    @ObservedObject var state: NoteEditorState
+    @ObservedObject var state: NoteEditorViewModel
 
     var body: some View {
         modeContent

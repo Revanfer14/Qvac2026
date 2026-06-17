@@ -12,11 +12,10 @@ import UIKit
 
 struct NoteEditorBody: View {
 
-    @ObservedObject var state: NoteEditorState
+    @ObservedObject var state: NoteEditorViewModel
     var onMoveToTrash: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    private let db = DatabaseService.shared
 
     // MARK: Body
 
@@ -49,7 +48,7 @@ struct NoteEditorBody: View {
         }
         .alert("Rename Note", isPresented: $state.showRename) {
             TextField("Title", text: $state.renameText)
-            Button("Save") { state.noteTitle = state.renameText }
+            Button("Save") { state.applyManualRename(state.renameText) }
             Button("Cancel", role: .cancel) {}
         }
         .photosPicker(isPresented: $state.showPhotoPicker, selection: $state.selectedPhotos, matching: .images)
@@ -187,10 +186,7 @@ struct NoteEditorBody: View {
 
                 ForEach(state.fileAttachments) { att in
                     AttachmentRowView(attachment: att) {
-                        if state.persistedAttachmentIds.contains(att.id) {
-                            db.attachments.delete(id: att.id)
-                        }
-                        state.fileAttachments.removeAll { $0.id == att.id }
+                        state.deleteAttachment(att)
                     }
                 }
             }

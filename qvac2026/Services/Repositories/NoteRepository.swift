@@ -21,6 +21,7 @@ final class NoteRepository {
     private let colUpdatedAt = Expression<Double>("updated_at")
     private let colDeletedAt   = Expression<Double?>("deleted_at")
     private let colContentRTF  = Expression<Data?>("content_rtf")
+    private let colPinned      = Expression<Bool>("pinned")
 
     init(db: Connection) {
         self.db = db
@@ -30,7 +31,7 @@ final class NoteRepository {
 
     func fetchActive() -> [Note] {
         guard let rows = try? db.prepare(
-            table.filter(colDeletedAt == nil).order(colUpdatedAt.desc)
+            table.filter(colDeletedAt == nil).order(colPinned.desc, colUpdatedAt.desc)
         ) else { return [] }
         return rows.map { rowToNote($0) }
     }
@@ -80,7 +81,8 @@ final class NoteRepository {
                 colType       <- note.type.rawValue,
                 colCreatedAt  <- note.createdAt.timeIntervalSince1970,
                 colUpdatedAt  <- note.updatedAt.timeIntervalSince1970,
-                colDeletedAt  <- note.deletedAt?.timeIntervalSince1970
+                colDeletedAt  <- note.deletedAt?.timeIntervalSince1970,
+                colPinned     <- note.pinned
             ))
         } catch {
             print("NoteRepository insert error: \(error)")
@@ -97,7 +99,8 @@ final class NoteRepository {
                 colContentRTF <- note.contentRTF,
                 colType       <- note.type.rawValue,
                 colUpdatedAt  <- Date().timeIntervalSince1970,
-                colDeletedAt  <- note.deletedAt?.timeIntervalSince1970
+                colDeletedAt  <- note.deletedAt?.timeIntervalSince1970,
+                colPinned     <- note.pinned
             ))
         } catch {
             print("NoteRepository update error: \(error)")
@@ -178,6 +181,17 @@ final class NoteRepository {
         }
     }
 
+    // MARK: - Pin
+
+    func setPinned(id: UUID, pinned: Bool) {
+        let target = table.filter(colId == id.uuidString)
+        do {
+            try db.run(target.update(colPinned <- pinned))
+        } catch {
+            print("NoteRepository setPinned error: \(error)")
+        }
+    }
+
     // MARK: - Private
 
     private func rowToNote(_ row: Row) -> Note {
@@ -190,7 +204,8 @@ final class NoteRepository {
             type:       NoteType(rawValue: row[colType]) ?? .text,
             createdAt:  Date(timeIntervalSince1970: row[colCreatedAt]),
             updatedAt:  Date(timeIntervalSince1970: row[colUpdatedAt]),
-            deletedAt:  row[colDeletedAt].map { Date(timeIntervalSince1970: $0) }
+            deletedAt:  row[colDeletedAt].map { Date(timeIntervalSince1970: $0) },
+            pinned:     row[colPinned]
         )
     }
 }

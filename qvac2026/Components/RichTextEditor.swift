@@ -21,22 +21,37 @@ final class RichTextController: ObservableObject {
     private let defaultFont = UIFont(name: "HelveticaNeue", size: 15) ?? .systemFont(ofSize: 15)
 
     func loadInitialContent(note: Note?) {
-        if let rtfData = note?.contentRTF,
-           let attrStr = try? NSAttributedString(
-               data: rtfData,
-               options: [.documentType: NSAttributedString.DocumentType.rtf],
-               documentAttributes: nil
-           ) {
-            attributedText = attrStr
-        } else if let plain = note?.content, !plain.isEmpty {
-            attributedText = NSAttributedString(
-                string: plain,
-                attributes: [.font: defaultFont]
-            )
-        } else {
-            attributedText = NSAttributedString()
+        if let data = note?.contentRTF {
+            // 1. Try our custom NSKeyedArchiver format (notes with inline audio).
+            if let unarchiver = try? NSKeyedUnarchiver(forReadingFrom: data) {
+                unarchiver.requiresSecureCoding = false
+                let decoded = unarchiver.decodeObject(forKey: NSKeyedArchiveRootObjectKey) as? NSAttributedString
+                unarchiver.finishDecoding()
+                if let attrStr = decoded {
+                    attributedText = attrStr
+                    isEmpty = attrStr.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    return
+                }
+            }
+            // 2. Fall back to RTF (older notes).
+            if let attrStr = try? NSAttributedString(
+                data: data,
+                options: [.documentType: NSAttributedString.DocumentType.rtf],
+                documentAttributes: nil
+            ) {
+                attributedText = attrStr
+                isEmpty = attrStr.string.isEmpty
+                return
+            }
         }
-        isEmpty = attributedText.string.isEmpty
+        // 3. Fall back to plain text.
+        if let plain = note?.content, !plain.isEmpty {
+            attributedText = NSAttributedString(string: plain, attributes: [.font: defaultFont])
+            isEmpty = false
+            return
+        }
+        attributedText = NSAttributedString()
+        isEmpty = true
     }
 
     // MARK: Bold / Italic
@@ -209,6 +224,69 @@ final class RichTextController: ObservableObject {
         sync(from: tv)
     }
 
+    // MARK: Inline audio
+
+    /// Inserts an audio attachment card at the current cursor position.
+    /// A newline is prepended if the cursor is not already at the start of a line,
+    /// and a trailing newline is always appended so typing continues below the card.
+    func insertAudio(_ attachment: Attachment, host: AudioAttachmentHosting) {
+        guard let tv = textView else { return }
+
+        let att = AudioTextAttachment(audioId: attachment.id.uuidString)
+        att.host = host
+
+        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: defaultFont]
+        let insertion = NSMutableAttributedString()
+
+        let insertionPoint = tv.selectedRange.location
+        let fullNSStr = tv.attributedText.string as NSString
+        let needsLeadingNewline = insertionPoint > 0
+            && fullNSStr.character(at: insertionPoint - 1) != 10  // 10 = '\n'
+        if needsLeadingNewline {
+            insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+        }
+        insertion.append(NSAttributedString(attachment: att))
+        insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+
+        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
+        mutable.insert(insertion, at: insertionPoint)
+        tv.attributedText = mutable
+        // Place cursor on the empty line below the card
+        tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
+        sync(from: tv)
+    }
+
+    /// Removes the inline audio attachment with the given `audioId` from the text view,
+    /// also consuming its trailing newline.
+    func removeAudioAttachment(audioId: String) {
+        guard let tv = textView else { return }
+        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
+        let fullNSStr = mutable.string as NSString
+        var rangeToDelete: NSRange?
+
+        mutable.enumerateAttribute(
+            .attachment,
+            in: NSRange(location: 0, length: mutable.length),
+            options: .reverse
+        ) { value, range, stop in
+            if (value as? AudioTextAttachment)?.audioId == audioId {
+                rangeToDelete = range
+                stop.pointee = true
+            }
+        }
+
+        guard var range = rangeToDelete else { return }
+        // Consume the trailing newline so the card doesn't leave a blank line
+        let afterEnd = range.location + range.length
+        if afterEnd < fullNSStr.length && fullNSStr.character(at: afterEnd) == 10 {
+            range.length += 1
+        }
+
+        mutable.deleteCharacters(in: range)
+        tv.attributedText = mutable
+        sync(from: tv)
+    }
+
     // MARK: Undo / Redo
 
     func undo() {
@@ -259,7 +337,7 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView()
+        let tv = UITextView(usingTextLayoutManager: true)
         tv.delegate = context.coordinator
         tv.font = UIFont(name: "HelveticaNeue", size: 15) ?? .systemFont(ofSize: 15)
         tv.backgroundColor = .clear

@@ -10,11 +10,7 @@ import SwiftUI
 struct TrashView: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var trashed: [Note] = []
-    @State private var showEmptyConfirm = false
-    @State private var deleteTarget: Note?
-
-    private let db = DatabaseService.shared.notes
+    @StateObject private var vm = TrashViewModel()
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -26,28 +22,25 @@ struct TrashView: View {
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            db.purgeExpiredTrash()
-            trashed = db.fetchTrashed()
+            vm.load()
         }
-        .alert("Permanently delete all notes in Trash?", isPresented: $showEmptyConfirm) {
+        .alert("Permanently delete all notes in Trash?", isPresented: $vm.showEmptyConfirm) {
             Button("Delete All", role: .destructive) {
-                db.emptyTrash()
-                trashed = []
+                vm.emptyAll()
             }
             Button("Cancel", role: .cancel) {}
         }
         .alert("Permanently delete this note?", isPresented: Binding(
-            get: { deleteTarget != nil },
-            set: { if !$0 { deleteTarget = nil } }
+            get: { vm.deleteTarget != nil },
+            set: { if !$0 { vm.deleteTarget = nil } }
         )) {
             Button("Delete", role: .destructive) {
-                if let note = deleteTarget {
-                    db.permanentlyDelete(id: note.id)
-                    trashed = db.fetchTrashed()
+                if let note = vm.deleteTarget {
+                    vm.permanentlyDelete(note)
                 }
-                deleteTarget = nil
+                vm.deleteTarget = nil
             }
-            Button("Cancel", role: .cancel) { deleteTarget = nil }
+            Button("Cancel", role: .cancel) { vm.deleteTarget = nil }
         }
     }
 
@@ -64,11 +57,11 @@ struct TrashView: View {
                 .foregroundStyle(Color.labelPrimary)
             Spacer()
             Button("Empty") {
-                showEmptyConfirm = true
+                vm.showEmptyConfirm = true
             }
             .font(.custom("HelveticaNeue", size: 14))
-            .foregroundStyle(trashed.isEmpty ? Color.labelSecondary : Color.red)
-            .disabled(trashed.isEmpty)
+            .foregroundStyle(vm.trashed.isEmpty ? Color.labelSecondary : Color.red)
+            .disabled(vm.trashed.isEmpty)
         }
         .padding(.horizontal, 20)
         .padding(.top, 14)
@@ -77,7 +70,7 @@ struct TrashView: View {
 
     @ViewBuilder
     private var content: some View {
-        if trashed.isEmpty {
+        if vm.trashed.isEmpty {
             Spacer()
             Text("Trash is empty")
                 .font(.custom("HelveticaNeue", size: 14))
@@ -85,56 +78,54 @@ struct TrashView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
             Spacer()
         } else {
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(trashed) { note in
-                        noteRow(note)
-                    }
+            List {
+                ForEach(vm.trashed) { note in
+                    trashCard(note)
+                        .listRowInsets(EdgeInsets(top: 5, leading: 20, bottom: 5, trailing: 20))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                vm.deleteTarget = note
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            Button {
+                                vm.restore(note)
+                            } label: {
+                                Label("Recover", systemImage: "arrow.uturn.left")
+                            }
+                            .tint(.blue)
+                        }
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .scrollIndicators(.hidden)
         }
     }
 
-    private func noteRow(_ note: Note) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+    private func trashCard(_ note: Note) -> some View {
+        HStack(spacing: 14) {
+            NoteIcon(type: note.type)
+            VStack(alignment: .leading, spacing: 4) {
                 Text(note.title.isEmpty ? "Untitled" : note.title)
-                    .font(.custom("HelveticaNeue-Medium", size: 14))
-                    .foregroundStyle(Color.labelPrimary)
+                    .font(.custom("HelveticaNeue-Bold", size: 15))
+                    .foregroundStyle(Color.primary)
                     .lineLimit(1)
-                Text(subtitleText(for: note))
+                Text(vm.subtitleText(for: note))
                     .font(.custom("HelveticaNeue", size: 12))
-                    .foregroundStyle(Color.labelSecondary)
+                    .foregroundStyle(Color(UIColor.tertiaryLabel))
+                    .lineLimit(2)
             }
-            Spacer()
+            Spacer(minLength: 8)
         }
-        .padding(.horizontal, 20)
-        .frame(minHeight: 56)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                deleteTarget = note
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            Button {
-                db.restoreFromTrash(id: note.id)
-                trashed = db.fetchTrashed()
-            } label: {
-                Label("Restore", systemImage: "arrow.uturn.left")
-            }
-            .tint(.blue)
-        }
-    }
-
-    private func subtitleText(for note: Note) -> String {
-        guard let deletedAt = note.deletedAt else { return "" }
-        let days = Calendar.current.dateComponents([.day], from: deletedAt, to: Date()).day ?? 0
-        let remaining = max(0, 30 - days)
-        let deletedLabel = days == 0 ? "today" : days == 1 ? "1 day ago" : "\(days) days ago"
-        return "Deleted \(deletedLabel) · auto-deletes in \(remaining) day\(remaining == 1 ? "" : "s")"
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.cardBackground)
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 2)
+        )
     }
 }
 

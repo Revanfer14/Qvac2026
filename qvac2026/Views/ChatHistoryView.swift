@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ChatHistoryView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var sessions: [ChatSession] = []
+    @StateObject private var vm = ChatHistoryViewModel()
 
     var body: some View {
         ZStack {
@@ -33,7 +33,7 @@ struct ChatHistoryView: View {
                 .padding(.vertical, 16)
                 .padding(.bottom, 10)
 
-                if sessions.isEmpty {
+                if vm.sessions.isEmpty {
                     Spacer()
                     Text("No chat history yet")
                         .font(.custom("HelveticaNeue", size: 14))
@@ -51,7 +51,7 @@ struct ChatHistoryView: View {
 
                     // Chat list
                     VStack(spacing: 20) {
-                        ForEach(sessions) { session in
+                        ForEach(vm.sessions) { session in
                             ChatHistoryRow(title: session.title)
                         }
                     }
@@ -64,7 +64,7 @@ struct ChatHistoryView: View {
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            sessions = DatabaseService.shared.chats.fetchSessions()
+            vm.load()
         }
     }
 }

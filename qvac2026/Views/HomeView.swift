@@ -11,96 +11,82 @@ struct HomeView: View {
 
     var refreshTick: Int = 0
 
-    @State private var searchText: String = ""
-    @State private var allNotes: [Note] = []
-    
+    @StateObject private var vm = HomeViewModel()
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                titleHeader
-                SearchBar(text: $searchText)
-                
-                ForEach(groupedNotes, id: \.title) { group in
-                    NoteSectionView(title: group.title, notes: group.notes)
+        VStack(alignment: .leading, spacing: 0) {
+            titleHeader
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+            SearchBar(text: $vm.searchText)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
+
+            List {
+                ForEach(vm.groupedNotes, id: \.title) { group in
+                    Section {
+                        ForEach(group.notes) { note in
+                            ZStack {
+                                NavigationLink(value: NoteRoute.existing(note)) { EmptyView() }
+                                    .opacity(0)
+                                NoteCard(note: note)
+                            }
+                            .listRowInsets(EdgeInsets(top: 5, leading: 20, bottom: 5, trailing: 20))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    vm.delete(note)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                Button {
+                                    vm.togglePin(note)
+                                } label: {
+                                    Label(note.pinned ? "Unpin" : "Pin",
+                                          systemImage: note.pinned ? "pin.slash" : "pin")
+                                }
+                                .tint(.orange)
+                            }
+                        }
+                    } header: {
+                        Text(group.title)
+                            .font(.custom("HelveticaNeue", size: 13))
+                            .foregroundStyle(Color.secondary)
+                            .kerning(1.0)
+                            .textCase(nil)
+                            .padding(.leading, 20)
+                    }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
         .background(AppBackground())
         .toolbar(.hidden, for: .navigationBar)
-        .onAppear { allNotes = DatabaseService.shared.notes.fetchActive() }
+        .onAppear { vm.refresh() }
         .task(id: refreshTick) {
-            allNotes = DatabaseService.shared.notes.fetchActive()
+            vm.refresh()
         }
     }
-    
+
     private var titleHeader: some View {
         HStack(alignment: .center) {
             Text("Notes")
                 .font(.custom("HelveticaNeue-Bold", size: 34))
                 .foregroundStyle(Color.primary)
-            
+
             Spacer()
-            
+
             NavigationLink {
                 SettingsView()
             } label: {
                 Image(systemName: "gearshape")
                     .font(.system(size: 22, weight: .regular))
                     .foregroundStyle(Color.primary)
-            }
-        }
-    }
-    
-    private var groupedNotes: [NoteGroup] {
-        let calendar = Calendar.current
-        
-        let source = searchText.isEmpty
-        ? allNotes
-        : allNotes.filter { $0.title.localizedCaseInsensitiveContains(searchText) || $0.preview.localizedCaseInsensitiveContains(searchText) }
-        
-        let today = source.filter { calendar.isDateInToday($0.updatedAt) }
-        
-        let yesterday = source.filter { calendar.isDateInYesterday($0.updatedAt) }
-        
-        let previousWeek = source.filter {
-            let isRecent = calendar.isDateInToday($0.updatedAt)
-            || calendar.isDateInYesterday($0.updatedAt)
-            let weekAgo = calendar.date(byAdding: .day, value: -7, to: .now)!
-            return !isRecent && $0.updatedAt >= weekAgo
-        }
-        
-        return [
-            NoteGroup(title: "TODAY",         notes: today),
-            NoteGroup(title: "YESTERDAY",     notes: yesterday),
-            NoteGroup(title: "PREVIOUS WEEK", notes: previousWeek)
-        ]
-            .filter { !$0.notes.isEmpty }
-    }
-}
-
-struct NoteGroup {
-    let title: String
-    let notes: [Note]
-}
-
-struct NoteSectionView: View {
-    let title: String
-    let notes: [Note]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.custom("HelveticaNeue", size: 13))
-                .foregroundStyle(Color.secondary)
-                .kerning(1.0)
-
-            VStack(spacing: 10) {
-                ForEach(notes) { note in
-                    NoteCard(note: note)
-                }
             }
         }
     }

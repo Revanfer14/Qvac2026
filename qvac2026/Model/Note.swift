@@ -23,6 +23,7 @@ struct Note: Identifiable, Hashable {
     var createdAt: Date
     var updatedAt: Date
     var deletedAt: Date?
+    var pinned: Bool = false
 
     var timeAgo: String {
         let formatter = RelativeDateTimeFormatter()

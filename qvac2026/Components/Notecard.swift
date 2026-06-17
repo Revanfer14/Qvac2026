@@ -12,25 +12,29 @@ struct NoteCard: View {
     let note: Note
 
     var body: some View {
-        NavigationLink(value: NoteRoute.existing(note)) {
-            HStack(spacing: 14) {
-                NoteIcon(type: note.type)
-                noteContent
-                Spacer(minLength: 8)
-                moreButton
-            }
-            .padding(16)
-            .background(cardBackground)
+        HStack(spacing: 14) {
+            NoteIcon(type: note.type)
+            noteContent
+            Spacer(minLength: 8)
+            moreButton
         }
-        .buttonStyle(.plain)
+        .padding(16)
+        .background(cardBackground)
     }
 
     private var noteContent: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(note.title)
-                .font(.custom("HelveticaNeue-Bold", size: 15))
-                .foregroundStyle(Color.primary)
-                .lineLimit(1)
+            HStack(spacing: 4) {
+                Text(note.title)
+                    .font(.custom("HelveticaNeue-Bold", size: 15))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                if note.pinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.orange)
+                }
+            }
 
             Text(note.preview)
                 .font(.custom("HelveticaNeue", size: 13))

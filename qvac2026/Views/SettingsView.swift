@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var theme: ThemeStore
 
     private let inactiveRows: [(label: String, icon: String)] = [
         ("Models",       "cpu"),
@@ -18,7 +19,7 @@ struct SettingsView: View {
     ]
 
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack(alignment: .top) {   
             VStack(spacing: 0) {
                 headerBar
                 rowList
@@ -51,10 +52,41 @@ struct SettingsView: View {
 
     private var rowList: some View {
         VStack(spacing: 0) {
-            NavigationLink { AppearanceView() } label: {
-                settingsRowContent(label: "Appearance", icon: "paintpalette")
+            HStack(spacing: 12) {
+                Image(systemName: "paintpalette")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(Color.labelPrimary)
+                    .frame(width: 22, height: 22)
+                Text("Appearance")
+                    .font(.custom("HelveticaNeue-Medium", size: 14))
+                    .foregroundStyle(Color.labelPrimary)
+                Spacer()
+                Menu {
+                    ForEach(Appearance.allCases) { option in
+                        Button {
+                            theme.set(option)
+                        } label: {
+                            if theme.appearance == option {
+                                Label(option.label, systemImage: "checkmark")
+                            } else {
+                                Text(option.label)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(theme.appearance.label)
+                            .font(.custom("HelveticaNeue", size: 14))
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .frame(height: 48)
 
             ForEach(inactiveRows, id: \.label) { row in
                 Button(action: {}) {
