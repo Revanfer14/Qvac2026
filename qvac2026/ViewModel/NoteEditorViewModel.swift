@@ -12,7 +12,7 @@ import Combine
 
 // MARK: - Supporting types
 
-enum NoteToolbarMode { case main, formatting, list, recording }
+enum NoteToolbarMode { case main, formatting, list, recording, table }
 
 struct DisplayImage: Identifiable {
     let id: UUID
@@ -53,10 +53,21 @@ final class NoteEditorViewModel: ObservableObject {
     @Published var presentedFile: PreviewFile?
     
     // MARK: Toolbar / rename UI
-    
+
     @Published var activeToolbar: NoteToolbarMode = .main
     @Published var showRename    = false
     @Published var renameText    = ""
+
+    // MARK: Table cell focus tracking
+
+    /// The table attachment whose cell is currently being edited, if any.
+    @Published var focusedTable: TableTextAttachment? = nil
+    /// The row/column of the cell currently being edited.
+    @Published var focusedCell: (row: Int, col: Int)? = nil
+    /// Incremented on each begin-edit; used to cancel stale end-edit deferrals.
+    private var cellEditingToken = 0
+    /// Cached UIHostingController for the table cell input accessory view.
+    private var tableCellAccessoryHosting: UIHostingController<NoteKeyboardToolbar>?
     
     // MARK: Recording
     
@@ -68,9 +79,10 @@ final class NoteEditorViewModel: ObservableObject {
     
     // MARK: Pickers
     
-    @Published var showPhotoPicker = false
+    @Published var showPhotoPicker  = false
     @Published var selectedPhotos: [PhotosPickerItem] = []
-    @Published var showFilePicker  = false
+    @Published var showFilePicker   = false
+    @Published var showCameraPicker = false
     
     // MARK: Persistence flags
     
@@ -126,6 +138,7 @@ final class NoteEditorViewModel: ObservableObject {
             (value as? AudioTextAttachment)?.host = self
             (value as? ImageTextAttachment)?.host = self
             (value as? FileTextAttachment)?.host  = self
+            (value as? TableTextAttachment)?.host  = self
         }
     }
     
@@ -317,6 +330,13 @@ final class NoteEditorViewModel: ObservableObject {
         persist()
     }
 
+    /// Inserts an inline editable table at the current cursor position and persists.
+    func insertTable() {
+        editor.insertTable(host: self)
+        markChanged()
+        persist()
+    }
+
     /// Copies the file at `sourceURL` into app storage, inserts it inline, and persists.
     /// The caller must hold a security-scoped resource access for `sourceURL`.
     func addFile(from sourceURL: URL) {
@@ -395,5 +415,133 @@ extension NoteEditorViewModel: FileAttachmentHosting {
         editor.removeFileAttachment(fileId: id.uuidString)
         markChanged()
         persist()
+    }
+}
+
+// MARK: - TableAttachmentHosting
+
+extension NoteEditorViewModel: TableAttachmentHosting {
+
+    // MARK: Protocol: content / layout change
+
+    /// A cell's text changed — persist the note (no layout refresh needed).
+    func tableContentDidChange() {
+        markChanged()
+        persist()
+    }
+
+    /// Kept for protocol conformance. Structural edits now go through the dedicated
+    /// insert/delete methods below, which call `rebuild(focusing:)` directly.
+    func tableLayoutDidChange() {
+        markChanged()
+        persist()
+    }
+
+    // MARK: Protocol: cell focus
+
+    func tableCellDidBeginEditing(_ att: TableTextAttachment, row: Int, col: Int) {
+        cellEditingToken += 1
+        focusedTable   = att
+        focusedCell    = (row, col)
+        activeToolbar  = .table
+        // Keep the floating bar hidden and show the "done" checkmark.
+        editor.isFocused = true
+    }
+
+    func tableCellDidEndEditing(_ att: TableTextAttachment) {
+        // Defer so that cell→cell transitions within the same table don't flip the
+        // toolbar back to .main. If a new begin-edit fires within the delay, the token
+        // will have advanced and this closure becomes a no-op.
+        let token = cellEditingToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self, self.cellEditingToken == token else { return }
+            self.focusedTable   = nil
+            self.focusedCell    = nil
+            self.activeToolbar  = .main
+            self.editor.isFocused = false
+        }
+    }
+
+    // MARK: Protocol: shared accessory view
+
+    /// Returns a stable `UIView` for all cell `inputAccessoryView`s. The underlying
+    /// `UIHostingController` is kept alive in `tableCellAccessoryHosting`.
+    func tableCellAccessoryView() -> UIView {
+        if let host = tableCellAccessoryHosting { return host.view }
+        let host = UIHostingController(rootView: NoteKeyboardToolbar(state: self))
+        host.view.frame = CGRect(x: 0, y: 0, width: 0, height: 48)
+        host.view.autoresizingMask = [.flexibleWidth]
+        host.view.backgroundColor = .clear
+        tableCellAccessoryHosting = host
+        return host.view
+    }
+
+    // MARK: Table structural edits
+
+    /// Inserts a blank row above the currently focused row.
+    func insertRowAbove() {
+        guard let att = focusedTable, let cell = focusedCell else { return }
+        let cols = att.cells.first?.count ?? 2
+        att.cells.insert(Array(repeating: "", count: cols), at: cell.row)
+        let newFocus = (row: cell.row, col: cell.col)
+        focusedCell = newFocus
+        att.currentProvider?.rebuild(focusing: newFocus)
+        markChanged(); persist()
+    }
+
+    /// Inserts a blank row below the currently focused row.
+    func insertRowBelow() {
+        guard let att = focusedTable, let cell = focusedCell else { return }
+        let cols = att.cells.first?.count ?? 2
+        att.cells.insert(Array(repeating: "", count: cols), at: cell.row + 1)
+        let newFocus = (row: cell.row + 1, col: cell.col)
+        focusedCell = newFocus
+        att.currentProvider?.rebuild(focusing: newFocus)
+        markChanged(); persist()
+    }
+
+    /// Inserts a blank column to the left of the currently focused column.
+    func insertColumnLeft() {
+        guard let att = focusedTable, let cell = focusedCell else { return }
+        for i in att.cells.indices { att.cells[i].insert("", at: cell.col) }
+        let newFocus = (row: cell.row, col: cell.col)
+        focusedCell = newFocus
+        att.currentProvider?.rebuild(focusing: newFocus)
+        markChanged(); persist()
+    }
+
+    /// Inserts a blank column to the right of the currently focused column.
+    func insertColumnRight() {
+        guard let att = focusedTable, let cell = focusedCell else { return }
+        for i in att.cells.indices { att.cells[i].insert("", at: cell.col + 1) }
+        let newFocus = (row: cell.row, col: cell.col + 1)
+        focusedCell = newFocus
+        att.currentProvider?.rebuild(focusing: newFocus)
+        markChanged(); persist()
+    }
+
+    /// Deletes the currently focused row. No-op when only one row remains.
+    func deleteRow() {
+        guard let att = focusedTable, let cell = focusedCell,
+              att.cells.count > 1 else { return }
+        att.cells.remove(at: cell.row)
+        let newRow   = min(cell.row, att.cells.count - 1)
+        let newCol   = min(cell.col, (att.cells.first?.count ?? 1) - 1)
+        let newFocus = (row: newRow, col: newCol)
+        focusedCell  = newFocus
+        att.currentProvider?.rebuild(focusing: newFocus)
+        markChanged(); persist()
+    }
+
+    /// Deletes the currently focused column. No-op when only one column remains.
+    func deleteColumn() {
+        guard let att = focusedTable, let cell = focusedCell,
+              (att.cells.first?.count ?? 0) > 1 else { return }
+        for i in att.cells.indices { att.cells[i].remove(at: cell.col) }
+        let newCol   = min(cell.col, (att.cells.first?.count ?? 1) - 1)
+        let newFocus = (row: cell.row, col: newCol)
+        focusedCell  = newFocus
+        att.currentProvider?.rebuild(focusing: newFocus)
+        markChanged(); persist()
     }
 }

@@ -24,6 +24,7 @@ struct NoteKeyboardToolbar: View {
         case .formatting: formattingBar
         case .list:       listBar
         case .recording:  recordingBar
+        case .table:      tableBar
         }
     }
 
@@ -34,14 +35,14 @@ struct NoteKeyboardToolbar: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 24) {
                     icon("microphone")           { state.startRecording() }
-                    icon("camera")               {}
+                    icon("camera")               { state.showCameraPicker = true }
                     icon("photo")                { state.showPhotoPicker = true }
                     icon("paperclip")            { state.showFilePicker = true }
                     Color.secondary.opacity(0.25)
                         .frame(width: 1, height: 20)
                     icon("textformat.alt")       { state.activeToolbar = .formatting }
                     icon("list.bullet")          { state.activeToolbar = .list }
-                    icon("tablecells")           { state.editor.insertTable() }
+                    icon("tablecells")           { state.insertTable() }
                     icon("arrow.uturn.backward") { state.editor.undo() }
                     icon("arrow.uturn.forward")  { state.editor.redo() }
                 }
@@ -163,6 +164,57 @@ struct NoteKeyboardToolbar: View {
             }
         }
         .padding(.horizontal, 16)
+    }
+
+    // MARK: - Table Bar
+
+    private var tableBar: some View {
+        let rowCount = state.focusedTable?.cells.count ?? 0
+        let colCount = state.focusedTable?.cells.first?.count ?? 0
+        return HStack(spacing: 0) {
+            // Back to main toolbar
+            Button { state.activeToolbar = .main } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .frame(width: 26, height: 26)
+            }
+            .padding(.leading, 16)
+
+            Color.secondary.opacity(0.25)
+                .frame(width: 1, height: 20)
+                .padding(.horizontal, 10)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 20) {
+                    // Insert row above / below
+                    icon("arrow.up.to.line")   { state.insertRowAbove() }
+                    icon("arrow.down.to.line") { state.insertRowBelow() }
+
+                    Color.secondary.opacity(0.25).frame(width: 1, height: 20)
+
+                    // Insert column left / right
+                    icon("arrow.left.to.line")  { state.insertColumnLeft()  }
+                    icon("arrow.right.to.line") { state.insertColumnRight() }
+
+                    Color.secondary.opacity(0.25).frame(width: 1, height: 20)
+
+                    // Delete row (disabled at 1 row)
+                    Button("Del Row") { state.deleteRow() }
+                        .font(.custom("HelveticaNeue-Bold", size: 13))
+                        .foregroundStyle(rowCount > 1 ? Color.red : Color.secondary)
+                        .disabled(rowCount <= 1)
+
+                    // Delete column (disabled at 1 column)
+                    Button("Del Col") { state.deleteColumn() }
+                        .font(.custom("HelveticaNeue-Bold", size: 13))
+                        .foregroundStyle(colCount > 1 ? Color.red : Color.secondary)
+                        .disabled(colCount <= 1)
+                }
+                .frame(height: 48)
+                .padding(.trailing, 16)
+            }
+        }
     }
 
     // MARK: - Helpers

@@ -161,6 +161,62 @@ final class RichTextController: ObservableObject {
         insertParagraphPrefix("☐ ")
     }
 
+    // MARK: List auto-continue helpers
+
+    private enum ListKind { case bullet, checklist, numbered(Int) }
+
+    /// Detects whether `content` (a paragraph string, trailing newline already stripped)
+    /// begins with a known list marker. Returns the kind and the exact marker string.
+    private func listContext(_ content: String) -> (kind: ListKind, marker: String)? {
+        if content.hasPrefix("• ")  { return (.bullet,    "• ") }
+        if content.hasPrefix("☐ ") { return (.checklist, "☐ ") }
+        if content.hasPrefix("☑ ") { return (.checklist, "☑ ") }   // checked → continue unchecked
+        let digits = content.prefix { $0.isNumber }
+        if !digits.isEmpty, content.dropFirst(digits.count).hasPrefix(". ") {
+            return (.numbered(Int(digits) ?? 1), "\(digits). ")
+        }
+        return nil
+    }
+
+    /// Called by the coordinator when the user presses Return.
+    /// Returns `true` if it consumed the event (auto-continued or exited a list).
+    func handleNewline(at range: NSRange) -> Bool {
+        guard let tv = textView else { return false }
+        let full = tv.text as NSString
+        let paraRange = full.paragraphRange(for: NSRange(location: range.location, length: 0))
+        var content = full.substring(with: paraRange)
+        if content.hasSuffix("\n") { content.removeLast() }
+        guard let ctx = listContext(content) else { return false }
+
+        let body = String(content.dropFirst(ctx.marker.count))
+        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
+
+        if body.trimmingCharacters(in: .whitespaces).isEmpty {
+            // Empty list item → exit list: strip the marker, don't insert a newline.
+            let removeRange = NSRange(location: paraRange.location, length: ctx.marker.utf16.count)
+            mutable.deleteCharacters(in: removeRange)
+            tv.attributedText = mutable
+            tv.selectedRange = NSRange(location: paraRange.location, length: 0)
+        } else {
+            // Non-empty item → continue list with the next marker (numbered auto-increments).
+            let next: String
+            switch ctx.kind {
+            case .bullet:          next = "• "
+            case .checklist:       next = "☐ "
+            case .numbered(let n): next = "\(n + 1). "
+            }
+            let insertion = "\n" + next
+            mutable.insert(
+                NSAttributedString(string: insertion, attributes: [.font: defaultFont]),
+                at: range.location
+            )
+            tv.attributedText = mutable
+            tv.selectedRange = NSRange(location: range.location + insertion.utf16.count, length: 0)
+        }
+        sync(from: tv)
+        return true
+    }
+
     private func insertParagraphPrefix(_ prefix: String) {
         guard let tv = textView else { return }
         let fullText = tv.text as NSString
@@ -212,15 +268,44 @@ final class RichTextController: ObservableObject {
 
     // MARK: Table
 
-    func insertTable() {
+    /// Inserts an inline editable table at the current cursor position.
+    /// A leading newline is added if the cursor isn't already at the start of a line;
+    /// a trailing newline is always appended so typing continues below the table.
+    func insertTable(host: TableAttachmentHosting) {
         guard let tv = textView else { return }
-        let tableTemplate = "| Col 1 | Col 2 |\n| --- | --- |\n| a | b |\n"
-        let insertion = NSAttributedString(string: tableTemplate, attributes: [.font: defaultFont])
-        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
+
+        let att = TableTextAttachment()
+        att.host = host
+
+        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: defaultFont]
+        let insertion = NSMutableAttributedString()
+
         let insertionPoint = tv.selectedRange.location
+        let fullNSStr = tv.attributedText.string as NSString
+        let needsLeadingNewline = insertionPoint > 0
+            && fullNSStr.character(at: insertionPoint - 1) != 10  // 10 = '\n'
+        if needsLeadingNewline {
+            insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+        }
+        insertion.append(NSAttributedString(attachment: att))
+        insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+
+        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
         mutable.insert(insertion, at: insertionPoint)
         tv.attributedText = mutable
-        tv.selectedRange = NSRange(location: insertionPoint + tableTemplate.utf16.count, length: 0)
+        tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
+        sync(from: tv)
+    }
+
+    /// Forces TextKit 2 to re-query all attachment bounds and rebuild attachment views.
+    /// Used after rows/columns are added or removed from a TableTextAttachment.
+    func refreshLayout() {
+        guard let tv = textView else { return }
+        let saved = tv.selectedRange
+        // Reassigning attributed text causes TextKit 2 to call viewProvider(for:) and
+        // attachmentBounds(for:) again for every attachment, rebuilding the grid UI.
+        tv.attributedText = NSAttributedString(attributedString: tv.attributedText)
+        tv.selectedRange = saved
         sync(from: tv)
     }
 
@@ -502,6 +587,16 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
 
         init(controller: RichTextController) {
             self.controller = controller
+        }
+
+        func textView(
+            _ textView: UITextView,
+            shouldChangeTextIn range: NSRange,
+            replacementText text: String
+        ) -> Bool {
+            // Intercept Return key to auto-continue or exit list items.
+            if text == "\n", controller.handleNewline(at: range) { return false }
+            return true
         }
 
         func textViewDidChange(_ textView: UITextView) {

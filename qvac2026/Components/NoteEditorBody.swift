@@ -62,6 +62,10 @@ struct NoteEditorBody: View {
                 state.selectedPhotos = []
             }
         }
+        .fullScreenCover(isPresented: $state.showCameraPicker) {
+            CameraPicker { img in state.addImage(img) }
+                .ignoresSafeArea()
+        }
         .fullScreenCover(item: $state.presentedImage) { item in
             ImageViewerView(image: item.image)
         }
@@ -100,7 +104,12 @@ struct NoteEditorBody: View {
 
             if state.editor.isFocused {
                 Button {
-                    state.editor.textView?.resignFirstResponder()
+                    // Resign whichever UIResponder is currently active —
+                    // works for both the main text view and table cell fields.
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder),
+                        to: nil, from: nil, for: nil
+                    )
                 } label: {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 24, weight: .medium))
@@ -168,7 +177,7 @@ struct NoteEditorBody: View {
     private var floatingBar: some View {
         HStack(spacing: 24) {
             icon("mic")                { state.editor.textView?.becomeFirstResponder(); state.startRecording() }
-            icon("camera")              {}
+            icon("camera")              { state.showCameraPicker = true }
             icon("photo.on.rectangle")  { state.showPhotoPicker = true }
             icon("paperclip")           { state.showFilePicker  = true }
         }

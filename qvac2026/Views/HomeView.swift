@@ -86,7 +86,7 @@ struct HomeView: View {
             } label: {
                 Image(systemName: "gearshape")
                     .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(Color.secondary)
             }
         }
     }
