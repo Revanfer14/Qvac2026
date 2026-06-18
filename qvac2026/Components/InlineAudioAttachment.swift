@@ -94,7 +94,7 @@ final class AudioAttachmentViewProvider: NSTextAttachmentViewProvider {
 
     override func loadView() {
         // Transparent container — top `topPadding` stays clear, card fills the rest.
-        let container = UIView()
+        let container = AttachmentContainerView()
         container.backgroundColor = .clear
 
         let card = AudioCardView()

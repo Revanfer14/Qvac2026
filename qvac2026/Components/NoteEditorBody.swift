@@ -29,15 +29,26 @@ struct NoteEditorBody: View {
                     .padding(.top, 14)
                     .padding(.bottom, 12)
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        contentEditor
-                        if state.isRecording {
-                            listeningPill.padding(.top, 10)
+                GeometryReader { geo in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            contentEditor
+                            if state.isRecording {
+                                listeningPill.padding(.top, 10)
+                            }
+                            // Tappable filler — routes taps on empty space below the last
+                            // block to the text view, placing the caret at the end.
+                            Color.clear
+                                .frame(minHeight: 140, maxHeight: .infinity)
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
+                                .onTapGesture { state.editor.focusAtEnd() }
                         }
+                        .padding(.horizontal, 20)
+                        // Ensures short notes fill the viewport so the filler expands
+                        // to cover all empty space; long notes scroll normally.
+                        .frame(minHeight: geo.size.height, alignment: .top)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 140)
                 }
             }
 

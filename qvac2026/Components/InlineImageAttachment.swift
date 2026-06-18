@@ -90,7 +90,7 @@ final class ImageAttachmentViewProvider: NSTextAttachmentViewProvider {
     private let horizontalInset: CGFloat = 8
 
     override func loadView() {
-        let container = UIView()
+        let container = AttachmentContainerView()
         container.backgroundColor = .clear
 
         let imageView = InlineTappableImageView(frame: .zero)

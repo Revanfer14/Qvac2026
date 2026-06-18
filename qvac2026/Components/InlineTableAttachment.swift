@@ -157,7 +157,7 @@ final class TableAttachmentViewProvider: NSTextAttachmentViewProvider {
             view = UIView(); return
         }
 
-        let container = UIView()
+        let container = AttachmentContainerView()
         container.backgroundColor = .clear
 
         // Register this provider so the VM can call rebuild() without touching

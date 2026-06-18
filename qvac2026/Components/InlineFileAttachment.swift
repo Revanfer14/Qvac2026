@@ -90,7 +90,7 @@ final class FileAttachmentViewProvider: NSTextAttachmentViewProvider {
     private let topPadding: CGFloat = 12   // gap above the card
 
     override func loadView() {
-        let container = UIView()
+        let container = AttachmentContainerView()
         container.backgroundColor = .clear
 
         let card = FileCardView()

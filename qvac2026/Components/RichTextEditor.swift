@@ -369,6 +369,7 @@ final class RichTextController: ObservableObject {
 
         mutable.deleteCharacters(in: range)
         tv.attributedText = mutable
+        ensureTrailingTextSlot()
         sync(from: tv)
     }
 
@@ -430,6 +431,7 @@ final class RichTextController: ObservableObject {
 
         mutable.deleteCharacters(in: range)
         tv.attributedText = mutable
+        ensureTrailingTextSlot()
         sync(from: tv)
     }
 
@@ -491,6 +493,7 @@ final class RichTextController: ObservableObject {
 
         mutable.deleteCharacters(in: range)
         tv.attributedText = mutable
+        ensureTrailingTextSlot()
         sync(from: tv)
     }
 
@@ -513,6 +516,53 @@ final class RichTextController: ObservableObject {
     func sync(from tv: UITextView) {
         attributedText = tv.attributedText
         isEmpty = tv.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    // MARK: - Caret placement helpers
+
+    /// Guarantees the document never ends on a non-text attachment glyph (U+FFFC).
+    /// Appends a trailing "\n" when the last character is an attachment so the user
+    /// always has a typeable slot below the last block. Idempotent — a document
+    /// already ending in a newline (the normal post-insert state) is left untouched.
+    func ensureTrailingTextSlot() {
+        guard let tv = textView else { return }
+        let str = tv.attributedText.string as NSString
+        guard str.length > 0,
+              str.character(at: str.length - 1) == 0xFFFC else { return }
+        let saved = tv.selectedRange
+        let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
+        mutable.append(NSAttributedString(string: "\n", attributes: [.font: defaultFont]))
+        tv.attributedText = mutable
+        tv.selectedRange = NSRange(location: min(saved.location, mutable.length), length: 0)
+        sync(from: tv)
+    }
+
+    /// Places the caret at the very end of the document, appending a trailing
+    /// text slot first when necessary, then makes the text view first responder.
+    func focusAtEnd() {
+        guard let tv = textView else { return }
+        ensureTrailingTextSlot()
+        tv.becomeFirstResponder()
+        tv.selectedRange = NSRange(location: tv.attributedText.length, length: 0)
+    }
+
+    /// Moves the caret to the text position nearest to `point` (in text-view
+    /// coordinates). Falls back to `focusAtEnd()` when `point` is below the
+    /// last line of content.
+    func placeCaret(at point: CGPoint) {
+        guard let tv = textView else { return }
+        let lastCaret = tv.caretRect(for: tv.endOfDocument)
+        if point.y > lastCaret.maxY + 4 {
+            focusAtEnd()
+            return
+        }
+        guard let position = tv.closestPosition(to: point) else {
+            focusAtEnd()
+            return
+        }
+        tv.becomeFirstResponder()
+        let offset = tv.offset(from: tv.beginningOfDocument, to: position)
+        tv.selectedRange = NSRange(location: offset, length: 0)
     }
 }
 
@@ -554,6 +604,20 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
         tv.attributedText = controller.attributedText
         controller.textView = tv
 
+        // Tap recognizer for caret placement on attachment padding and the empty area
+        // below content. cancelsTouchesInView=false lets attachment interactive subviews
+        // (image, card buttons, table cells) still handle their own taps unimpeded.
+        let tap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTap(_:))
+        )
+        tap.cancelsTouchesInView = false
+        tap.delegate = context.coordinator
+        tv.addGestureRecognizer(tap)
+
+        // Fix legacy notes that were persisted ending directly on an attachment.
+        controller.ensureTrailingTextSlot()
+
         let host = UIHostingController(rootView: accessory())
         host.view.frame = CGRect(x: 0, y: 0, width: 0, height: 48)
         host.view.autoresizingMask = [.flexibleWidth]
@@ -580,7 +644,7 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
 
     // MARK: Coordinator
 
-    final class Coordinator: NSObject, UITextViewDelegate {
+    final class Coordinator: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
         let controller: RichTextController
         var isEditing = false
         var hostingController: UIHostingController<Accessory>?
@@ -612,5 +676,44 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
             isEditing = false
             controller.isFocused = false
         }
+
+        // MARK: Caret placement
+
+        @objc func handleTap(_ g: UITapGestureRecognizer) {
+            guard let tv = controller.textView else { return }
+            controller.placeCaret(at: g.location(in: tv))
+        }
+
+        // MARK: UIGestureRecognizerDelegate
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldReceive touch: UITouch
+        ) -> Bool {
+            // Allow caret placement on the text view's own background and on the
+            // transparent top-padding area of attachment containers. Taps on interactive
+            // inner subviews (image views, card buttons, sliders, table cells) are NOT
+            // AttachmentContainerView instances, so they keep handling their own taps.
+            return touch.view === controller.textView || touch.view is AttachmentContainerView
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            // Let UITextInteraction (caret, magnifier, double-tap selection) run
+            // alongside our recognizer without either cancelling the other.
+            return true
+        }
     }
 }
+
+// MARK: - AttachmentContainerView
+
+/// Marker UIView subclass used as the root container of every non-text attachment
+/// view provider (image, file, audio, table). Taps on this view — the bare top-
+/// padding area between blocks — reach `Coordinator.shouldReceive`, which passes
+/// them to `placeCaret(at:)`. Taps on the inner interactive subviews (image view,
+/// card buttons, table text fields, slider) are NOT an `AttachmentContainerView`
+/// touch, so `shouldReceive` rejects them and those subviews handle their own taps.
+final class AttachmentContainerView: UIView {}
