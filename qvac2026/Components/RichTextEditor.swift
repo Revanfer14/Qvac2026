@@ -20,6 +20,12 @@ final class RichTextController: ObservableObject {
 
     private let defaultFont = UIFont(name: "HelveticaNeue", size: 15) ?? .systemFont(ofSize: 15)
 
+    /// Default attributes for body text. Always includes the dynamic label color so
+    /// text is readable in both light and dark mode.
+    private var bodyAttrs: [NSAttributedString.Key: Any] {
+        [.font: defaultFont, .foregroundColor: UIColor.label]
+    }
+
     func loadInitialContent(note: Note?) {
         if let data = note?.contentRTF {
             // 1. Try our custom NSKeyedArchiver format (notes with inline audio).
@@ -46,7 +52,7 @@ final class RichTextController: ObservableObject {
         }
         // 3. Fall back to plain text.
         if let plain = note?.content, !plain.isEmpty {
-            attributedText = NSAttributedString(string: plain, attributes: [.font: defaultFont])
+            attributedText = NSAttributedString(string: plain, attributes: bodyAttrs)
             isEmpty = false
             return
         }
@@ -207,7 +213,7 @@ final class RichTextController: ObservableObject {
             }
             let insertion = "\n" + next
             mutable.insert(
-                NSAttributedString(string: insertion, attributes: [.font: defaultFont]),
+                NSAttributedString(string: insertion, attributes: bodyAttrs),
                 at: range.location
             )
             tv.attributedText = mutable
@@ -232,7 +238,7 @@ final class RichTextController: ObservableObject {
             tv.attributedText = mutable
             tv.selectedRange = NSRange(location: max(0, cursorPos - prefix.utf16.count), length: 0)
         } else {
-            let insertion = NSAttributedString(string: prefix, attributes: [.font: defaultFont])
+            let insertion = NSAttributedString(string: prefix, attributes: bodyAttrs)
             let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
             mutable.insert(insertion, at: paraRange.location)
             tv.attributedText = mutable
@@ -277,7 +283,6 @@ final class RichTextController: ObservableObject {
         let att = TableTextAttachment()
         att.host = host
 
-        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: defaultFont]
         let insertion = NSMutableAttributedString()
 
         let insertionPoint = tv.selectedRange.location
@@ -289,12 +294,17 @@ final class RichTextController: ObservableObject {
         }
         insertion.append(NSAttributedString(attachment: att))
         insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+        // Ensure the attachment glyph (U+FFFC) also carries the label color so
+        // UITextView doesn't derive black typingAttributes from it later.
+        insertion.addAttribute(.foregroundColor, value: UIColor.label,
+                               range: NSRange(location: 0, length: insertion.length))
 
         let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
         mutable.insert(insertion, at: insertionPoint)
         tv.attributedText = mutable
         tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
         sync(from: tv)
+        restoreTypingColor()
     }
 
     /// Forces TextKit 2 to re-query all attachment bounds and rebuild attachment views.
@@ -320,7 +330,6 @@ final class RichTextController: ObservableObject {
         let att = AudioTextAttachment(audioId: attachment.id.uuidString)
         att.host = host
 
-        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: defaultFont]
         let insertion = NSMutableAttributedString()
 
         let insertionPoint = tv.selectedRange.location
@@ -332,6 +341,8 @@ final class RichTextController: ObservableObject {
         }
         insertion.append(NSAttributedString(attachment: att))
         insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+        insertion.addAttribute(.foregroundColor, value: UIColor.label,
+                               range: NSRange(location: 0, length: insertion.length))
 
         let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
         mutable.insert(insertion, at: insertionPoint)
@@ -339,6 +350,7 @@ final class RichTextController: ObservableObject {
         // Place cursor on the empty line below the card
         tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
         sync(from: tv)
+        restoreTypingColor()
     }
 
     /// Removes the inline audio attachment with the given `audioId` from the text view,
@@ -384,7 +396,6 @@ final class RichTextController: ObservableObject {
         let att = ImageTextAttachment(imageId: attachment.id.uuidString)
         att.host = host
 
-        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: defaultFont]
         let insertion = NSMutableAttributedString()
 
         let insertionPoint = tv.selectedRange.location
@@ -396,12 +407,15 @@ final class RichTextController: ObservableObject {
         }
         insertion.append(NSAttributedString(attachment: att))
         insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+        insertion.addAttribute(.foregroundColor, value: UIColor.label,
+                               range: NSRange(location: 0, length: insertion.length))
 
         let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
         mutable.insert(insertion, at: insertionPoint)
         tv.attributedText = mutable
         tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
         sync(from: tv)
+        restoreTypingColor()
     }
 
     /// Removes the inline image attachment with the given `imageId` from the text view,
@@ -446,7 +460,6 @@ final class RichTextController: ObservableObject {
         let att = FileTextAttachment(fileId: attachment.id.uuidString)
         att.host = host
 
-        let bodyAttrs: [NSAttributedString.Key: Any] = [.font: defaultFont]
         let insertion = NSMutableAttributedString()
 
         let insertionPoint = tv.selectedRange.location
@@ -458,12 +471,15 @@ final class RichTextController: ObservableObject {
         }
         insertion.append(NSAttributedString(attachment: att))
         insertion.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
+        insertion.addAttribute(.foregroundColor, value: UIColor.label,
+                               range: NSRange(location: 0, length: insertion.length))
 
         let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
         mutable.insert(insertion, at: insertionPoint)
         tv.attributedText = mutable
         tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
         sync(from: tv)
+        restoreTypingColor()
     }
 
     /// Removes the inline file attachment with the given `fileId` from the text view,
@@ -518,6 +534,16 @@ final class RichTextController: ObservableObject {
         isEmpty = tv.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Re-applies the dynamic label color to typingAttributes.
+    /// UITextView re-derives typingAttributes from the character adjacent to the
+    /// caret whenever attributedText is reassigned or selectedRange changes. If
+    /// that adjacent character is a colorless attachment glyph (U+FFFC), the
+    /// foregroundColor key is absent and typed text falls back to black in dark
+    /// mode. This must be called after every insertion or caret placement.
+    private func restoreTypingColor() {
+        textView?.typingAttributes[.foregroundColor] = UIColor.label
+    }
+
     // MARK: - Caret placement helpers
 
     /// Guarantees the document never ends on a non-text attachment glyph (U+FFFC).
@@ -531,10 +557,11 @@ final class RichTextController: ObservableObject {
               str.character(at: str.length - 1) == 0xFFFC else { return }
         let saved = tv.selectedRange
         let mutable = NSMutableAttributedString(attributedString: tv.attributedText)
-        mutable.append(NSAttributedString(string: "\n", attributes: [.font: defaultFont]))
+        mutable.append(NSAttributedString(string: "\n", attributes: bodyAttrs))
         tv.attributedText = mutable
         tv.selectedRange = NSRange(location: min(saved.location, mutable.length), length: 0)
         sync(from: tv)
+        restoreTypingColor()
     }
 
     /// Places the caret at the very end of the document, appending a trailing
@@ -544,6 +571,7 @@ final class RichTextController: ObservableObject {
         ensureTrailingTextSlot()
         tv.becomeFirstResponder()
         tv.selectedRange = NSRange(location: tv.attributedText.length, length: 0)
+        restoreTypingColor()
     }
 
     /// Moves the caret to the text position nearest to `point` (in text-view
@@ -563,6 +591,7 @@ final class RichTextController: ObservableObject {
         tv.becomeFirstResponder()
         let offset = tv.offset(from: tv.beginningOfDocument, to: position)
         tv.selectedRange = NSRange(location: offset, length: 0)
+        restoreTypingColor()
     }
 }
 
@@ -597,11 +626,24 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
         let tv = UITextView(usingTextLayoutManager: true)
         tv.delegate = context.coordinator
         tv.font = UIFont(name: "HelveticaNeue", size: 15) ?? .systemFont(ofSize: 15)
+        tv.textColor = .label
+        tv.typingAttributes[.foregroundColor] = UIColor.label
         tv.backgroundColor = .clear
         tv.isScrollEnabled = false
         tv.textContainerInset = .zero
         tv.textContainer.lineFragmentPadding = 0
+        // Bind the text container's width to the view's width so long lines
+        // wrap at the edge rather than overflowing horizontally.
+        tv.textContainer.widthTracksTextView = true
+        tv.textContainer.lineBreakMode = .byWordWrapping
+        tv.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        tv.setContentHuggingPriority(.defaultLow, for: .horizontal)
         tv.attributedText = controller.attributedText
+        // Prevent UITextView from self-scrolling when content is assigned.
+        // The outer SwiftUI ScrollView is the sole scroller; the text view
+        // must always start at offset zero so the top lines aren't hidden
+        // under the header when a note is opened.
+        tv.contentOffset = .zero
         controller.textView = tv
 
         // Tap recognizer for caret placement on attachment padding and the empty area
@@ -634,6 +676,9 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
             let savedRange = tv.selectedRange
             tv.attributedText = controller.attributedText
             tv.selectedRange = savedRange
+            // Reset any self-scroll that occurred during content load so the
+            // outer SwiftUI ScrollView always controls the view position.
+            tv.contentOffset = .zero
         }
         context.coordinator.hostingController?.rootView = accessory()
     }
@@ -675,6 +720,16 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
         func textViewDidEndEditing(_ textView: UITextView) {
             isEditing = false
             controller.isFocused = false
+        }
+
+        // UIScrollViewDelegate: UITextView fires scroll-to-visible internally (e.g.
+        // on content assignment or caret moves) even when isScrollEnabled is false.
+        // Pinning the offset to zero ensures the outer SwiftUI ScrollView remains the
+        // sole scroller and the note always opens at the top.
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            if !scrollView.isScrollEnabled, scrollView.contentOffset != .zero {
+                scrollView.contentOffset = .zero
+            }
         }
 
         // MARK: Caret placement

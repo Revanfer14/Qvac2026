@@ -161,7 +161,7 @@ struct NoteEditorBody: View {
             RichTextEditor(controller: state.editor) {
                 NoteKeyboardToolbar(state: state)
             }
-            .frame(minHeight: 200)
+            .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
         }
     }
 
@@ -195,9 +195,9 @@ struct NoteEditorBody: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .fixedSize()
-        .background(Color.white)
+        .background(Color.cardBackground)
         .clipShape(Capsule())
-        .overlay(Capsule().stroke(Color(hex: "#DCDCDC"), lineWidth: 1))
+        .overlay(Capsule().stroke(Color(.separator), lineWidth: 1))
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 2)
     }
 

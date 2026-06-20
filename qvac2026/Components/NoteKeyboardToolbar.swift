@@ -13,7 +13,7 @@ struct NoteKeyboardToolbar: View {
     var body: some View {
         modeContent
             .frame(height: 48)
-            .background(Color.white)
+            .background(Color.cardBackground)
             .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: -1)
     }
 

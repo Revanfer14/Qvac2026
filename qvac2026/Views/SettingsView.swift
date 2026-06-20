@@ -118,6 +118,7 @@ struct SettingsView: View {
         }
         .padding(.horizontal, 20)
         .frame(height: 48)
+        .contentShape(Rectangle())
     }
 
     private var versionFooter: some View {

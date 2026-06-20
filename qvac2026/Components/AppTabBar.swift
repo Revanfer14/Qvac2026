@@ -28,8 +28,8 @@ struct AppTabBar: View {
         .padding(6)
         .background(
             Capsule()
-                .fill(Color.white)
-                .overlay(Capsule().stroke(Color(hex: "#DCDCDC"), lineWidth: 1))
+                .fill(Color.cardBackground)
+                .overlay(Capsule().stroke(Color(.separator), lineWidth: 1))
                 .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 2)
         )
         .padding(.horizontal, 44)
