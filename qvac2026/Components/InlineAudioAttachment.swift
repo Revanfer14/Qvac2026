@@ -173,7 +173,7 @@ final class AudioCardView: UIView {
     // MARK: - Layout
 
     private func setupUI() {
-        backgroundColor     = .white
+        backgroundColor     = UIColor(named: "Colors/CardBackground") ?? .white
         layer.cornerRadius  = 12
         layer.shadowColor   = UIColor.black.cgColor
         layer.shadowOpacity = 0.05

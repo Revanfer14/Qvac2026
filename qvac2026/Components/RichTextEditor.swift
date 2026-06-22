@@ -304,7 +304,6 @@ final class RichTextController: ObservableObject {
         tv.attributedText = mutable
         tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
         sync(from: tv)
-        restoreTypingColor()
     }
 
     /// Forces TextKit 2 to re-query all attachment bounds and rebuild attachment views.
@@ -350,7 +349,6 @@ final class RichTextController: ObservableObject {
         // Place cursor on the empty line below the card
         tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
         sync(from: tv)
-        restoreTypingColor()
     }
 
     /// Removes the inline audio attachment with the given `audioId` from the text view,
@@ -415,7 +413,6 @@ final class RichTextController: ObservableObject {
         tv.attributedText = mutable
         tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
         sync(from: tv)
-        restoreTypingColor()
     }
 
     /// Removes the inline image attachment with the given `imageId` from the text view,
@@ -479,7 +476,6 @@ final class RichTextController: ObservableObject {
         tv.attributedText = mutable
         tv.selectedRange = NSRange(location: insertionPoint + insertion.length, length: 0)
         sync(from: tv)
-        restoreTypingColor()
     }
 
     /// Removes the inline file attachment with the given `fileId` from the text view,
@@ -534,14 +530,17 @@ final class RichTextController: ObservableObject {
         isEmpty = tv.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Re-applies the dynamic label color to typingAttributes.
-    /// UITextView re-derives typingAttributes from the character adjacent to the
-    /// caret whenever attributedText is reassigned or selectedRange changes. If
-    /// that adjacent character is a colorless attachment glyph (U+FFFC), the
-    /// foregroundColor key is absent and typed text falls back to black in dark
-    /// mode. This must be called after every insertion or caret placement.
-    private func restoreTypingColor() {
-        textView?.typingAttributes[.foregroundColor] = UIColor.label
+    /// TextKit 2 renders runs that have no explicit foreground color as black,
+    /// ignoring UITextView.textColor. This stamps every character in the text
+    /// storage with UIColor.label so older notes (saved without a color attribute)
+    /// are readable in dark mode. Safe to call repeatedly — it only adds a color
+    /// attribute; fonts, paragraph styles, and attachments are preserved.
+    func normalizeForegroundColor(_ tv: UITextView) {
+        let full = NSRange(location: 0, length: tv.textStorage.length)
+        guard full.length > 0 else { return }
+        tv.textStorage.beginEditing()
+        tv.textStorage.addAttribute(.foregroundColor, value: UIColor.label, range: full)
+        tv.textStorage.endEditing()
     }
 
     // MARK: - Caret placement helpers
@@ -561,7 +560,6 @@ final class RichTextController: ObservableObject {
         tv.attributedText = mutable
         tv.selectedRange = NSRange(location: min(saved.location, mutable.length), length: 0)
         sync(from: tv)
-        restoreTypingColor()
     }
 
     /// Places the caret at the very end of the document, appending a trailing
@@ -571,7 +569,6 @@ final class RichTextController: ObservableObject {
         ensureTrailingTextSlot()
         tv.becomeFirstResponder()
         tv.selectedRange = NSRange(location: tv.attributedText.length, length: 0)
-        restoreTypingColor()
     }
 
     /// Moves the caret to the text position nearest to `point` (in text-view
@@ -591,7 +588,181 @@ final class RichTextController: ObservableObject {
         tv.becomeFirstResponder()
         let offset = tv.offset(from: tv.beginningOfDocument, to: position)
         tv.selectedRange = NSRange(location: offset, length: 0)
-        restoreTypingColor()
+    }
+
+    // MARK: - Find-on-page
+
+    private let searchHighlightColor       = UIColor.systemYellow.withAlphaComponent(0.50)
+    private let searchActiveHighlightColor = UIColor.systemOrange.withAlphaComponent(0.65)
+
+    /// All ranges matching the current search query, in document order.
+    private var searchRanges: [NSRange] = []
+    /// Index into searchRanges for the currently active (orange) match.
+    private var currentSearchIndex: Int = 0
+
+    /// Finds all case-insensitive occurrences of `query` in the note, highlights them
+    /// via TextKit 2 rendering attributes (yellow for all, orange for the first), and
+    /// scrolls the first match into view. Returns the total number of matches.
+    @discardableResult
+    func performSearch(_ query: String) -> Int {
+        clearSearchHighlights()
+        guard let tv = textView else { return 0 }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+
+        // Match-finding reads textStorage.string — fine under TextKit 2.
+        let fullString = tv.textStorage.string as NSString
+        let fullRange  = NSRange(location: 0, length: fullString.length)
+        var ranges: [NSRange] = []
+        var searchRange = fullRange
+
+        while searchRange.location < NSMaxRange(fullRange) {
+            let found = fullString.range(
+                of: trimmed,
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: searchRange
+            )
+            guard found.location != NSNotFound else { break }
+            ranges.append(found)
+            let nextStart = found.location + max(found.length, 1)
+            searchRange = NSRange(location: nextStart, length: fullRange.length - nextStart)
+        }
+
+        searchRanges = ranges
+        guard !ranges.isEmpty else { return 0 }
+
+        currentSearchIndex = 0
+        highlightCurrentMatch(in: tv)
+        return ranges.count
+    }
+
+    /// Advances to the next match (wrapping) and scrolls it into view.
+    /// Returns the new 0-based index so the caller can update a counter.
+    @discardableResult
+    func goToNextMatch() -> Int {
+        guard !searchRanges.isEmpty, let tv = textView else { return 0 }
+        currentSearchIndex = (currentSearchIndex + 1) % searchRanges.count
+        highlightCurrentMatch(in: tv)
+        return currentSearchIndex
+    }
+
+    /// Moves to the previous match (wrapping) and scrolls it into view.
+    /// Returns the new 0-based index.
+    @discardableResult
+    func goToPreviousMatch() -> Int {
+        guard !searchRanges.isEmpty, let tv = textView else { return 0 }
+        currentSearchIndex = (currentSearchIndex - 1 + searchRanges.count) % searchRanges.count
+        highlightCurrentMatch(in: tv)
+        return currentSearchIndex
+    }
+
+    /// Removes all search highlights. Safe to call when no search is active.
+    func clearSearchHighlights() {
+        guard let tv = textView else {
+            searchRanges = []
+            currentSearchIndex = 0
+            return
+        }
+        if let tlm = tv.textLayoutManager {
+            // TextKit 2 path: wipe rendering attributes over the whole document.
+            tlm.removeRenderingAttribute(.backgroundColor, for: tlm.documentRange)
+        } else if !searchRanges.isEmpty {
+            // TextKit 1 fallback (shouldn't occur; tv was created with usingTextLayoutManager: true).
+            let fullRange = NSRange(location: 0, length: tv.textStorage.length)
+            tv.textStorage.beginEditing()
+            tv.textStorage.removeAttribute(.backgroundColor, range: fullRange)
+            tv.textStorage.endEditing()
+        }
+        searchRanges = []
+        currentSearchIndex = 0
+    }
+
+    // Repaints all matches yellow, the active match orange, then scrolls to it.
+    // Uses TextKit 2 rendering attributes so highlights never touch the backing
+    // store and autosave is never triggered.
+    private func highlightCurrentMatch(in tv: UITextView) {
+        guard !searchRanges.isEmpty else { return }
+
+        if let tlm = tv.textLayoutManager {
+            // Clear previous rendering highlights for the whole document.
+            tlm.removeRenderingAttribute(.backgroundColor, for: tlm.documentRange)
+            // Paint all matches yellow.
+            for range in searchRanges {
+                if let tr = nsTextRange(for: range, in: tlm) {
+                    tlm.addRenderingAttribute(.backgroundColor,
+                                             value: searchHighlightColor, for: tr)
+                }
+            }
+            // Paint the active match orange.
+            let activeRange = searchRanges[currentSearchIndex]
+            if let tr = nsTextRange(for: activeRange, in: tlm) {
+                tlm.addRenderingAttribute(.backgroundColor,
+                                         value: searchActiveHighlightColor, for: tr)
+            }
+            scrollToMatch(activeRange, in: tv)
+        } else {
+            // TextKit 1 fallback.
+            tv.textStorage.beginEditing()
+            for range in searchRanges {
+                tv.textStorage.addAttribute(.backgroundColor,
+                                           value: searchHighlightColor, range: range)
+            }
+            let activeRange = searchRanges[currentSearchIndex]
+            tv.textStorage.addAttribute(.backgroundColor,
+                                        value: searchActiveHighlightColor, range: activeRange)
+            tv.textStorage.endEditing()
+            scrollToMatch(activeRange, in: tv)
+        }
+    }
+
+    /// Converts an `NSRange` into an `NSTextRange` using the TextKit 2 content manager.
+    private func nsTextRange(for nsRange: NSRange,
+                             in tlm: NSTextLayoutManager) -> NSTextRange? {
+        guard let cm = tlm.textContentManager else { return nil }
+        guard
+            let start = cm.location(cm.documentRange.location, offsetBy: nsRange.location),
+            let end   = cm.location(start, offsetBy: nsRange.length)
+        else { return nil }
+        return NSTextRange(location: start, end: end)
+    }
+
+    /// Walks the view hierarchy above `tv` to find the UIScrollView that backs
+    /// SwiftUI's ScrollView — the real scroller when isScrollEnabled is false.
+    private func enclosingScrollView() -> UIScrollView? {
+        var view: UIView? = textView?.superview
+        while let v = view {
+            if let sv = v as? UIScrollView { return sv }
+            view = v.superview
+        }
+        return nil
+    }
+
+    /// Scrolls the enclosing UIScrollView so `range` is visible, with vertical padding
+    /// so the match doesn't land flush against the header or the bottom edge.
+    private func scrollToMatch(_ range: NSRange, in tv: UITextView) {
+        guard let sv = enclosingScrollView() else {
+            tv.scrollRangeToVisible(range)   // fallback: tv is somehow self-scrolling
+            return
+        }
+
+        // Build a UITextRange via TextKit 2-safe position APIs.
+        guard
+            let start  = tv.position(from: tv.beginningOfDocument, offset: range.location),
+            let end    = tv.position(from: start, offset: range.length),
+            let tRange = tv.textRange(from: start, to: end)
+        else { return }
+
+        // firstRect(for:) gives the rect in the text view's coordinate space.
+        // Guard against null / infinite results (can occur before layout finishes).
+        let matchRectInTV = tv.firstRect(for: tRange)
+        guard matchRectInTV != .null,
+              matchRectInTV.width.isFinite,
+              matchRectInTV.height.isFinite else { return }
+
+        // Convert and add breathing room so the match isn't hidden under the
+        // search bar header (top) or barely peeking above the bottom edge.
+        let matchRectInSV = tv.convert(matchRectInTV, to: sv)
+        sv.scrollRectToVisible(matchRectInSV.insetBy(dx: 0, dy: -60), animated: true)
     }
 }
 
@@ -639,6 +810,9 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
         tv.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         tv.setContentHuggingPriority(.defaultLow, for: .horizontal)
         tv.attributedText = controller.attributedText
+        // TextKit 2 renders runs with no explicit foreground color as black.
+        // Stamp every character with UIColor.label immediately after load.
+        controller.normalizeForegroundColor(tv)
         // Prevent UITextView from self-scrolling when content is assigned.
         // The outer SwiftUI ScrollView is the sole scroller; the text view
         // must always start at offset zero so the top lines aren't hidden
@@ -675,6 +849,9 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
         if tv.attributedText != controller.attributedText && !context.coordinator.isEditing {
             let savedRange = tv.selectedRange
             tv.attributedText = controller.attributedText
+            // Stamp label color on the freshly loaded content so colorless runs
+            // (notes saved before the color fix) don't render black in dark mode.
+            controller.normalizeForegroundColor(tv)
             tv.selectedRange = savedRange
             // Reset any self-scroll that occurred during content load so the
             // outer SwiftUI ScrollView always controls the view position.
@@ -720,6 +897,13 @@ struct RichTextEditor<Accessory: View>: UIViewRepresentable {
         func textViewDidEndEditing(_ textView: UITextView) {
             isEditing = false
             controller.isFocused = false
+        }
+
+        // Fires on every caret/selection change — the single chokepoint where we
+        // reassert the label color so UIKit's typingAttributes re-derivation from
+        // a colorless attachment glyph can never make newly typed text go black.
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            textView.typingAttributes[.foregroundColor] = UIColor.label
         }
 
         // UIScrollViewDelegate: UITextView fires scroll-to-visible internally (e.g.

@@ -29,6 +29,13 @@ struct NoteEditorBody: View {
                     .padding(.top, 14)
                     .padding(.bottom, 12)
 
+                if state.isSearching {
+                    searchBar
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 10)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 GeometryReader { geo in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
@@ -128,22 +135,75 @@ struct NoteEditorBody: View {
                         .frame(width: 28, height: 28)
                 }
             } else {
-                Menu {
-                    Button { } label: { Label("Share", systemImage: "square.and.arrow.up") }
-                    Button { state.renameText = state.noteTitle; state.showRename = true } label: {
-                        Label("Rename", systemImage: "pencil")
+                HStack(spacing: 4) {
+                    Button { state.openSearch() } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .frame(width: 28, height: 28)
                     }
-                    Divider()
-                    Button(role: .destructive) {
-                        onMoveToTrash()
-                    } label: { Label("Move to Trash", systemImage: "trash") }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .rotationEffect(.degrees(90))
-                        .frame(width: 28, height: 28)
+
+                    Menu {
+                        Button { } label: { Label("Share", systemImage: "square.and.arrow.up") }
+                        Button { state.renameText = state.noteTitle; state.showRename = true } label: {
+                            Label("Rename", systemImage: "pencil")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            onMoveToTrash()
+                        } label: { Label("Move to Trash", systemImage: "trash") }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .rotationEffect(.degrees(90))
+                            .frame(width: 28, height: 28)
+                    }
                 }
+            }
+        }
+    }
+
+    // MARK: - Search Bar
+
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            // Query field (reuses the existing SearchBar component for consistent styling).
+            SearchBar(text: $state.searchQuery)
+                .onChange(of: state.searchQuery) { _, _ in state.runSearch() }
+
+            // Match counter.
+            if state.matchCount > 0 || !state.searchQuery.isEmpty {
+                Text(state.matchCount > 0
+                     ? "\(state.currentMatchIndex)/\(state.matchCount)"
+                     : "0/0")
+                    .font(.custom("HelveticaNeue", size: 13))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .fixedSize()
+            }
+
+            // Previous match.
+            Button { state.prevMatch() } label: {
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(state.matchCount > 0 ? Color.primary : Color.secondary)
+            }
+            .disabled(state.matchCount == 0)
+
+            // Next match.
+            Button { state.nextMatch() } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(state.matchCount > 0 ? Color.primary : Color.secondary)
+            }
+            .disabled(state.matchCount == 0)
+
+            // Done — close search and clear highlights.
+            Button { withAnimation { state.closeSearch() } } label: {
+                Text("Done")
+                    .font(.custom("HelveticaNeue-Medium", size: 15))
+                    .foregroundStyle(.primary)
             }
         }
     }

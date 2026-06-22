@@ -58,6 +58,43 @@ final class NoteEditorViewModel: ObservableObject {
     @Published var showRename    = false
     @Published var renameText    = ""
 
+    // MARK: In-note search (find-on-page)
+
+    @Published var isSearching       = false
+    @Published var searchQuery       = ""
+    @Published var matchCount        = 0
+    /// 1-based index of the active match. 0 means no matches.
+    @Published var currentMatchIndex = 0
+
+    func openSearch() {
+        withAnimation { isSearching = true }
+    }
+
+    func closeSearch() {
+        isSearching       = false
+        searchQuery       = ""
+        matchCount        = 0
+        currentMatchIndex = 0
+        editor.clearSearchHighlights()
+    }
+
+    func runSearch() {
+        matchCount        = editor.performSearch(searchQuery)
+        currentMatchIndex = matchCount > 0 ? 1 : 0
+    }
+
+    func nextMatch() {
+        guard matchCount > 0 else { return }
+        let idx           = editor.goToNextMatch()
+        currentMatchIndex = idx + 1
+    }
+
+    func prevMatch() {
+        guard matchCount > 0 else { return }
+        let idx           = editor.goToPreviousMatch()
+        currentMatchIndex = idx + 1
+    }
+
     // MARK: Table cell focus tracking
 
     /// The table attachment whose cell is currently being edited, if any.
